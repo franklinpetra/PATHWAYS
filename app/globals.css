@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/*
+ * PATHWAYS design tokens.
+ * Mobile-first, sparse, elegant. Each token generates utilities
+ * (e.g. bg-background, text-foreground, border-border, text-primary, p-gutter).
+ */
+@theme {
+  /* Palette */
+  --color-background: #fbfbf9; /* warm off-white */
+  --color-foreground: #1c1d1f; /* charcoal */
+  --color-primary: #4a6b5d; /* restrained sage */
+  --color-primary-foreground: #fbfbf9;
+  --color-border: #e5e7eb; /* thin neutral */
+  --color-muted-foreground: #5f6368; /* secondary text, AA on background */
+  --color-surface: #ffffff; /* cards resting on the background */
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Generous spacing */
+  --spacing-gutter: 1.5rem;
+  --spacing-section: 3rem;
+
+  /* Minimal shadows: replace Tailwind's defaults with near-flat elevation */
+  --shadow-*: initial;
+  --shadow-xs: 0 1px 1px 0 rgb(28 29 31 / 0.03);
+  --shadow-sm: 0 1px 2px 0 rgb(28 29 31 / 0.04);
+  --shadow-md: 0 2px 6px -1px rgb(28 29 31 / 0.05);
+
+  /* Soft, restrained corners */
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
