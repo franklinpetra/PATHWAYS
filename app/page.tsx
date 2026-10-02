@@ -26,7 +26,7 @@ export default async function Home({ searchParams }: PageProps) {
           <div className="max-w-2xl">
             <h1 className="display">Where do you want to go next?</h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Think out loud. We&apos;ll organize what you share — you decide what matters.
+              Think out loud. We&apos;ll organize what you share and we&apos;ll help you map your next steps.
             </p>
             {query.handoff === "expired" && (
               <p role="status" className="notice mt-8 max-w-xl">

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "seed:wa": "tsx scripts/seed-washington.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
-    "load:licensure": "tsx scripts/load-licensure.ts"
+    "load:licensure": "tsx scripts/load-licensure.ts",
+    "reset-user": "tsx scripts/reset-user.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
