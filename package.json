@@ -9,12 +9,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "seed:wa": "tsx scripts/seed-washington.ts",
-    "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts"
+    "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
+    "load:licensure": "tsx scripts/load-licensure.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
     "lucide-react": "^1.49.0",
     "next": "^16.0.0",
+    "postgres": "^3.4.9",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

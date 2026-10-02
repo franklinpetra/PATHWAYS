@@ -86,6 +86,15 @@ describe("oneTimeTotal", () => {
     expect(oneTimeTotal(fees)).toEqual({ unconfirmed: "Background check is not confirmed" });
   });
 
+  it("leaves reissuance and other non-obtaining fees out of the total", () => {
+    const fees = [
+      fee({ fee_type: "initial_license", amount: 140 }),
+      fee({ fee_type: "other", label: "Expired credential reissuance", amount: 70 }),
+      fee({ fee_type: "late_renewal", amount: 70 }),
+    ];
+    expect(oneTimeTotal(fees)).toEqual({ total: "USD 140.00" });
+  });
+
   it("refuses a total across currencies", () => {
     expect(oneTimeTotal([fee({ amount: 100 }), fee({ fee_type: "application", amount: 50, currency: "CAD" })])).toEqual({
       unconfirmed: "fees are listed in different currencies",
@@ -97,8 +106,8 @@ describe("licensureClaims fails closed", () => {
   it("states requirements and fees from a governing source, with a total", () => {
     const { claims } = licensureClaims([match({ fees: [fee({ amount: 175 }), fee({ fee_type: "application", amount: 85 })] })], today);
     expect(claims.map((c) => c.statement)).toEqual([
-      "Example Technician License (license) in Washington, issued by Example State Board. Requirements: Example requirement. In effect since 2026-01-01.",
-      "Example Technician License fees: Exam fee: USD 175.00; Application fee: USD 85.00. Known one-time fees total USD 260.00.",
+      "Example Technician License (license) in Washington, issued by Example State Board. Requirements: Example requirement. Requirements in effect since 2026-01-01.",
+      "Example Technician License (license) in Washington, issued by Example State Board. Fees in effect since 2026-01-01: Exam fee: USD 175.00; Application fee: USD 85.00. Known fees to obtain the credential total USD 260.00.",
     ]);
     expect(claims[0].source).toMatchObject({ verificationAuthority: "Example State Board", asOf: "2026-09-01" });
   });
@@ -143,7 +152,7 @@ describe("licensureClaims fails closed", () => {
       [match({ fees: [fee({ amount: 175 }), fee({ fee_type: "application", amount: 85, currency: null })] })],
       today,
     );
-    const feeClaim = claims.find((c) => c.statement.includes("fees:"))!;
+    const feeClaim = claims.find((c) => c.statement.includes("Fees in effect"))!;
     expect(feeClaim.statement).toContain("USD 175.00");
     expect(feeClaim.statement).not.toContain("85");
     expect(notes.join(" ")).toMatch(/incomplete and was not used/);
@@ -154,7 +163,7 @@ describe("licensureClaims fails closed", () => {
       [match({ fees: [fee({ amount: 175 }), fee({ fee_type: "background_check", amount_status: "variable", amount: null, currency: null })] })],
       today,
     );
-    expect(claims[1].statement).toContain("Total one-time cost can't be confirmed: Background check is not confirmed.");
+    expect(claims[1].statement).toContain("Total cost to obtain can't be confirmed: Background check is not confirmed.");
   });
 
   it("gives no total when fees come from different sources", () => {
@@ -162,12 +171,19 @@ describe("licensureClaims fails closed", () => {
       [match({ fees: [fee({ amount: 175 }), fee({ fee_type: "application", amount: 85, source_url: "https://example.test/other" })] })],
       today,
     );
-    expect(claims.filter((c) => c.statement.includes("fees:"))).toHaveLength(2);
+    expect(claims.filter((c) => c.statement.includes("Fees in effect"))).toHaveLength(2);
     expect(claims.some((c) => c.statement.includes("total"))).toBe(false);
     expect(notes.join(" ")).toMatch(/more than one source/);
   });
 
   it("notes when no verified fee schedule exists", () => {
     expect(licensureClaims([match()], today).notes.join(" ")).toMatch(/No verified fee schedule/);
+  });
+
+  it("for a fee-only source, dates the fees rather than the credential", () => {
+    const { claims } = licensureClaims([match({ fees: [fee({ fee_type: "initial_license", amount: 140 })] }, { requirements: null })], today);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].statement).toContain("Fees in effect since 2026-01-01");
+    expect(claims[0].statement).not.toMatch(/Requirements/);
   });
 });

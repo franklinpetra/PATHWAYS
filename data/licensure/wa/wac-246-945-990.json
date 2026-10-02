@@ -1,0 +1,157 @@
+{
+  "status": "draft",
+  "source": {
+    "name": "WAC 246-945-990 Pharmaceutical licensing fees and renewal cycle",
+    "url": "https://app.leg.wa.gov/wac/default.aspx?cite=246-945-990",
+    "retrieved_on": "2026-10-02",
+    "authority": "Washington State Department of Health",
+    "effective_from": "2021-12-01",
+    "effective_basis": "WSR 21-18-102, filed 8/31/21, effective 12/1/21: the most recent entry in the section's history note. Agency filings for this section list only WSR 21-12-074 and 21-18-102 as of 2026-10-02.",
+    "observation_period": null
+  },
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Check every fee against the official text at the source URL; the loader also re-verifies each excerpt and amount when it runs.",
+      "Credential kind is recorded as 'license'. The WAC text calls both 'credentials'; confirm the kind against the Department of Health credential pages before approving.",
+      "Renewal recurrence of 24 months comes from subsection (1): 'renewed every two years on the practitioner's birthday'.",
+      "'Expired credential reissuance' is stored as an 'other' fee: listed for the person, never added to the cost to obtain.",
+      "Fingerprint-based background check and national certification exam are recorded as 'unknown' (not set by this WAC), so the total cost to obtain stays unconfirmed until a governing source is added.",
+      "Omitted: subsection (4)(a) fees for all pharmacy professionals (verification of credential $25.00, duplicate credential $10.00), which are services rather than steps to obtain or keep the credential."
+    ]
+  },
+  "jurisdiction": "US-WA",
+  "authorities": [
+    {
+      "name": "Washington State Department of Health",
+      "role": "governing",
+      "website_url": "https://doh.wa.gov"
+    },
+    {
+      "name": "Pharmacy Quality Assurance Commission",
+      "role": "governing",
+      "website_url": null
+    }
+  ],
+  "credentials": [
+    {
+      "name": "Pharmacy Technician",
+      "kind": "license",
+      "occupations": ["29-2052.00"],
+      "issuer": "Pharmacy Quality Assurance Commission",
+      "requirements": null,
+      "duration_note": null,
+      "excerpts": [
+        "(1) Pharmacist, pharmacy technician, pharmacy intern, and pharmacy assistant credentials must be renewed every two years on the practitioner's birthday as provided in chapter 246-12 WAC.",
+        "(c) Pharmacy technician: Initial credential $140.00; Renewal 140.00; Late renewal penalty 70.00; Expired credential reissuance 70.00"
+      ],
+      "fees": [
+        {
+          "type": "initial_license",
+          "label": "Initial credential fee",
+          "source_label": "Initial credential",
+          "status": "known",
+          "amount": 140,
+          "currency": "USD"
+        },
+        {
+          "type": "renewal",
+          "label": "Renewal fee",
+          "source_label": "Renewal",
+          "status": "known",
+          "amount": 140,
+          "currency": "USD",
+          "recurrence_months": 24
+        },
+        {
+          "type": "late_renewal",
+          "label": "Late renewal penalty",
+          "source_label": "Late renewal penalty",
+          "status": "known",
+          "amount": 70,
+          "currency": "USD"
+        },
+        {
+          "type": "other",
+          "label": "Expired credential reissuance",
+          "source_label": "Expired credential reissuance",
+          "status": "known",
+          "amount": 70,
+          "currency": "USD"
+        },
+        {
+          "type": "background_check",
+          "label": "Fingerprint-based background check",
+          "status": "unknown",
+          "notes": "Not set by WAC 246-945-990; whether it applies and what it costs are unconfirmed."
+        },
+        {
+          "type": "exam",
+          "label": "National certification exam",
+          "status": "unknown",
+          "notes": "Not set by WAC 246-945-990; whether it is required and what it costs are unconfirmed."
+        }
+      ]
+    },
+    {
+      "name": "Pharmacy Assistant",
+      "kind": "license",
+      "occupations": ["31-9095.00"],
+      "issuer": "Pharmacy Quality Assurance Commission",
+      "requirements": null,
+      "duration_note": null,
+      "excerpts": [
+        "(1) Pharmacist, pharmacy technician, pharmacy intern, and pharmacy assistant credentials must be renewed every two years on the practitioner's birthday as provided in chapter 246-12 WAC.",
+        "(e) Pharmacy assistant: Initial credential $70.00; Renewal 70.00; Late renewal penalty 50.00; Expired credential reissuance 35.00"
+      ],
+      "fees": [
+        {
+          "type": "initial_license",
+          "label": "Initial credential fee",
+          "source_label": "Initial credential",
+          "status": "known",
+          "amount": 70,
+          "currency": "USD"
+        },
+        {
+          "type": "renewal",
+          "label": "Renewal fee",
+          "source_label": "Renewal",
+          "status": "known",
+          "amount": 70,
+          "currency": "USD",
+          "recurrence_months": 24
+        },
+        {
+          "type": "late_renewal",
+          "label": "Late renewal penalty",
+          "source_label": "Late renewal penalty",
+          "status": "known",
+          "amount": 50,
+          "currency": "USD"
+        },
+        {
+          "type": "other",
+          "label": "Expired credential reissuance",
+          "source_label": "Expired credential reissuance",
+          "status": "known",
+          "amount": 35,
+          "currency": "USD"
+        },
+        {
+          "type": "background_check",
+          "label": "Fingerprint-based background check",
+          "status": "unknown",
+          "notes": "Not set by WAC 246-945-990; whether it applies and what it costs are unconfirmed."
+        },
+        {
+          "type": "exam",
+          "label": "National certification exam",
+          "status": "unknown",
+          "notes": "Not set by WAC 246-945-990; whether it is required and what it costs are unconfirmed."
+        }
+      ]
+    }
+  ]
+}

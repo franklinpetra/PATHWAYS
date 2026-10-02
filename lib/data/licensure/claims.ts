@@ -37,8 +37,18 @@ const FEE_LABEL: Record<FeeType, string> = {
   other: "Other fee",
 };
 
-/** Recurring or penalty fees are reported separately from the one-time cost of getting licensed. */
-const NOT_ONE_TIME: readonly FeeType[] = ["renewal", "late_renewal"];
+/**
+ * Fees on the path to obtaining the credential. Renewals, penalties, and other fees
+ * (reissuance, verification, duplicates) are listed but never added to the total.
+ */
+const TO_OBTAIN: readonly FeeType[] = [
+  "application",
+  "exam",
+  "background_check",
+  "fingerprinting",
+  "initial_license",
+  "credential_evaluation",
+];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -100,10 +110,10 @@ export function describeFee(fee: CredentialFeeRecord): string | null {
   }
 }
 
-/** Total one-time cost, or the reason it can't be confirmed. */
+/** Total cost to obtain the credential, or the reason it can't be confirmed. */
 export function oneTimeTotal(fees: CredentialFeeRecord[]): { total: string } | { unconfirmed: string } {
-  const oneTime = fees.filter((f) => !NOT_ONE_TIME.includes(f.fee_type) && f.amount_status !== "not_applicable");
-  if (oneTime.length === 0) return { unconfirmed: "no one-time fees are listed" };
+  const oneTime = fees.filter((f) => TO_OBTAIN.includes(f.fee_type) && f.amount_status !== "not_applicable");
+  if (oneTime.length === 0) return { unconfirmed: "no fees to obtain the credential are listed" };
   const open = oneTime.filter((f) => f.amount_status !== "known" && f.amount_status !== "zero");
   if (open.length) return { unconfirmed: `${open.map(feeLabel).join(", ")} ${open.length === 1 ? "is" : "are"} not confirmed` };
   if (oneTime.some((f) => describeFee(f) === null)) return { unconfirmed: "a fee record is incomplete" };
@@ -149,19 +159,22 @@ export function licensureClaims(matches: CredentialMatch[], today: string): Lice
     }
 
     const v = governing.version;
-    claims.push({
-      id: `licensure:${credentialId}:requirements`,
-      kind: "licensure",
-      statement: [
-        `${governing.credential_name} (${governing.credential_kind}) ${where}, issued by ${issuerNames(governing)}.`,
-        v.requirements ? `Requirements: ${v.requirements.replace(/\.$/, "")}.` : null,
-        v.duration_note ? `Time to obtain: ${v.duration_note.replace(/\.$/, "")}.` : null,
-        `In effect since ${v.effective_from}.`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-      source: attribution(v),
-    });
+    const identity = `${governing.credential_name} (${governing.credential_kind}) ${where}, issued by ${issuerNames(governing)}.`;
+    if (v.requirements || v.duration_note) {
+      claims.push({
+        id: `licensure:${credentialId}:requirements`,
+        kind: "licensure",
+        statement: [
+          identity,
+          v.requirements ? `Requirements: ${v.requirements.replace(/\.$/, "")}.` : null,
+          v.duration_note ? `Time to obtain: ${v.duration_note.replace(/\.$/, "")}.` : null,
+          `Requirements in effect since ${v.effective_from}.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        source: attribution(v),
+      });
+    }
 
     // Fees: only governing, dated, well-formed records; grouped by the source that states them.
     const fees = governing.fees.filter((f) => {
@@ -177,6 +190,9 @@ export function licensureClaims(matches: CredentialMatch[], today: string): Lice
     });
     if (fees.length === 0) {
       notes.push(`No verified fee schedule for ${governing.credential_name}; fees are unconfirmed.`);
+      if (!v.requirements && !v.duration_note) {
+        claims.push({ id: `licensure:${credentialId}:identity`, kind: "licensure", statement: identity, source: attribution(v) });
+      }
       continue;
     }
 
@@ -193,13 +209,13 @@ export function licensureClaims(matches: CredentialMatch[], today: string): Lice
       const totalText =
         groups.size === 1
           ? "total" in total
-            ? ` Known one-time fees total ${total.total}.`
-            : ` Total one-time cost can't be confirmed: ${total.unconfirmed}.`
+            ? ` Known fees to obtain the credential total ${total.total}.`
+            : ` Total cost to obtain can't be confirmed: ${total.unconfirmed}.`
           : "";
       claims.push({
         id: `licensure:${credentialId}:fees:${group[0].source_url}`,
         kind: "licensure",
-        statement: `${governing.credential_name} fees: ${lines}.${totalText}`,
+        statement: `${identity} Fees in effect since ${v.effective_from}: ${lines}.${totalText}`,
         source: attribution(group[0]),
       });
     }
