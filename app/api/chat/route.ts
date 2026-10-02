@@ -11,10 +11,6 @@ export const dynamic = "force-dynamic";
 const bodySchema = z
   .object({
     message: z.string().trim().max(4000).nullish(),
-    history: z
-      .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8000) }))
-      .max(40)
-      .default([]),
     pathwayId: z.uuid().nullish(),
     userActions: z.array(userActionSchema).max(10).default([]),
   })
@@ -22,6 +18,9 @@ const bodySchema = z
 
 /**
  * POST /api/chat
+ *
+ * The conversation history is read from the stored transcript; both the person's
+ * message and the reply (complete or interrupted) are persisted.
  *
  * Streams newline-delimited JSON (application/x-ndjson), one ChatEvent per line:
  *   {"type":"text","delta":"..."}                         reply text, in order
@@ -54,7 +53,6 @@ export async function POST(req: Request) {
           {
             userId,
             message: body.message || null,
-            history: body.history,
             pathwayId: body.pathwayId ?? null,
             userActions: body.userActions,
             signal: req.signal,

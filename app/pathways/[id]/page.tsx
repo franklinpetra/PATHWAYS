@@ -4,7 +4,8 @@ import { z } from "zod";
 import { SiteHeader } from "@/components/workspace/SiteHeader";
 import { Workspace } from "@/components/workspace/Workspace";
 import { getSessionUserId } from "@/lib/auth/session";
-import { getPathway } from "@/lib/db/queries";
+import { getPathway, listMessages } from "@/lib/db/queries";
+import type { VerifiedPlace } from "@/lib/workspace/events";
 import { loadPanels } from "@/lib/workspace/service";
 import { initialTopics } from "@/lib/workspace/topics";
 
@@ -27,7 +28,11 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
   const pathway = await getPathway(userId, id);
   if (!pathway) notFound();
 
-  const [{ nextSteps, recentWins }, query] = await Promise.all([loadPanels(userId, pathway.id), searchParams]);
+  const [{ nextSteps, recentWins }, stored, query] = await Promise.all([
+    loadPanels(userId, pathway.id),
+    listMessages(userId, pathway.id, 100),
+    searchParams,
+  ]);
   const place = typeof query.place === "string" && query.place.trim() ? query.place.slice(0, 300) : null;
   const label = typeof query.label === "string" ? query.label.slice(0, 120) : null;
 
@@ -40,6 +45,14 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
         initialWins={recentWins}
         initialTopics={initialTopics(pathway)}
         sharedPlace={place ? { query: place, label } : null}
+        initialMessages={stored.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          status: "done",
+          interrupted: m.status === "interrupted",
+          places: m.places as VerifiedPlace[],
+        }))}
       />
     </>
   );

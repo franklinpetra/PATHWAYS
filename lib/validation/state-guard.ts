@@ -7,9 +7,12 @@ import {
   type Actor,
   type ContextItem,
   type EvidenceStatus,
+  type MessageRole,
+  type MessageStatus,
   type Pathway,
   type ProgressEvent,
   type Provenance,
+  type StoredMessage,
   type SemanticStatus,
   type TemporalStatus,
 } from "@/lib/db/types";
@@ -49,6 +52,8 @@ type ProgressEventInsert = Pick<
   "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning"
 >;
 
+type MessageInsert = Pick<StoredMessage, "user_id" | "pathway_id" | "role" | "content" | "status" | "places">;
+
 type Mutation =
   | { op: "insert_context_item"; row: ContextItemInsert }
   | { op: "update_context_item"; id: string; userId: string; patch: ContextItemPatch }
@@ -56,7 +61,8 @@ type Mutation =
   | { op: "update_action_status"; id: string; from: ActionStatus; status: ActionStatus }
   | { op: "update_action_fields"; id: string; patch: ActionFieldPatch }
   | { op: "insert_progress_event"; row: ProgressEventInsert }
-  | { op: "update_progress_event"; id: string; userId: string; patch: { title: string; learning: string | null } };
+  | { op: "update_progress_event"; id: string; userId: string; patch: { title: string; learning: string | null } }
+  | { op: "insert_message"; row: MessageInsert };
 
 export type ValidatedMutation = Mutation & { readonly [validated]: true };
 
@@ -462,6 +468,51 @@ export function guardWinCandidates(
       });
   }
   return { candidates, rejections };
+}
+
+// ---------------------------------------------------------------------------
+// Conversation transcript (append-only)
+// ---------------------------------------------------------------------------
+
+const MESSAGE_LIMITS: Record<MessageRole, number> = { user: 4000, assistant: 20000 };
+
+export interface MessageProposal {
+  role: MessageRole;
+  content: string;
+  pathwayId: string | null;
+  status?: MessageStatus;
+  places?: unknown[];
+}
+
+/** Records one message. Only assistant replies may be 'interrupted' or carry places. */
+export function guardMessage(state: GuardState, p: MessageProposal): GuardResult {
+  const reject = (reason: string): GuardResult => ({
+    mutations: [],
+    rejections: [{ proposal: `${p.role} message`, reason }],
+  });
+  const content = p.content.trim();
+  if (!content) return reject("message is empty");
+  if (content.length > MESSAGE_LIMITS[p.role]) return reject("message is too long");
+  if (p.pathwayId && !ownsPathway(state, p.pathwayId)) return reject("pathway not found");
+  if (p.role === "user" && (p.status === "interrupted" || (p.places?.length ?? 0) > 0)) {
+    return reject("user messages are always complete and carry no places");
+  }
+  return {
+    mutations: [
+      seal({
+        op: "insert_message",
+        row: {
+          user_id: state.userId,
+          pathway_id: p.pathwayId,
+          role: p.role,
+          content,
+          status: p.status ?? "complete",
+          places: p.places ?? [],
+        },
+      }),
+    ],
+    rejections: [],
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./supabase";
-import type { Action, ContextItem, Occupation, Pathway, Place, ProgramMatch, ProgressEvent, User } from "./types";
+import type { Action, ContextItem, Occupation, Pathway, Place, ProgramMatch, ProgressEvent, StoredMessage, User } from "./types";
 import type { GuardState } from "@/lib/validation/state-guard";
 
 // Read-only access. Writes live in ./mutations.ts and accept only guard-validated input.
@@ -65,6 +65,14 @@ export async function listRecentWins(userId: string, limit = 5): Promise<Progres
     .order("occurred_at", { ascending: false })
     .limit(limit);
   return unwrap<ProgressEvent[]>(res, "recent wins");
+}
+
+/** The most recent messages in a thread, oldest first. A null pathway is the general thread. */
+export async function listMessages(userId: string, pathwayId: string | null, limit = 50): Promise<StoredMessage[]> {
+  let query = db().from("messages").select("*").eq("user_id", userId);
+  query = pathwayId ? query.eq("pathway_id", pathwayId) : query.is("pathway_id", null);
+  const res = await query.order("created_at", { ascending: false }).limit(limit);
+  return unwrap<StoredMessage[]>(res, "messages").reverse();
 }
 
 /** Snapshot of a person's state for the state guard. */

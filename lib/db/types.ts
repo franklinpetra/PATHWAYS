@@ -64,6 +64,12 @@ export const WIN_EVENT_TYPES = [
 ] as const;
 export type WinEventType = (typeof WIN_EVENT_TYPES)[number];
 
+export const MESSAGE_ROLES = ["user", "assistant"] as const;
+export type MessageRole = (typeof MESSAGE_ROLES)[number];
+
+export const MESSAGE_STATUSES = ["complete", "interrupted"] as const;
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+
 export const EVIDENCE_STATUSES = ["user_reported", "advisor_confirmed", "system_verified"] as const;
 export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
@@ -170,4 +176,16 @@ export interface ProgramMatch {
   source_url: string;
   source_as_of: string;
   distance_miles: number | null;
+}
+
+export interface StoredMessage {
+  id: string;
+  user_id: string;
+  pathway_id: string | null;
+  role: MessageRole;
+  content: string;
+  status: MessageStatus;
+  /** VerifiedPlace[] for assistant replies. */
+  places: unknown[];
+  created_at: string;
 }

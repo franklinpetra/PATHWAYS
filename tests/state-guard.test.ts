@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Action, ContextItem, Pathway, ProgressEvent } from "@/lib/db/types";
 import {
   guardMemoryProposals,
+  guardMessage,
   guardStepProposals,
   guardUserActions,
   guardWinCandidates,
@@ -417,5 +418,25 @@ describe("editing wins", () => {
     ]);
     expect(r.mutations).toEqual([]);
     expect(r.rejections).toHaveLength(2);
+  });
+});
+
+describe("messages", () => {
+  it("records user and assistant messages in the person's thread", () => {
+    const user = guardMessage(state(), { role: "user", content: "  I work evenings  ", pathwayId: PATHWAY });
+    expect(user.mutations[0]).toMatchObject({
+      op: "insert_message",
+      row: { user_id: USER, pathway_id: PATHWAY, role: "user", content: "I work evenings", status: "complete", places: [] },
+    });
+    const reply = guardMessage(state(), { role: "assistant", content: "Partial", pathwayId: PATHWAY, status: "interrupted" });
+    expect(reply.mutations[0]).toMatchObject({ row: { status: "interrupted" } });
+  });
+
+  it("rejects empty, oversized, foreign-pathway, and malformed user messages", () => {
+    const s = state();
+    expect(guardMessage(s, { role: "user", content: "   ", pathwayId: null }).mutations).toEqual([]);
+    expect(guardMessage(s, { role: "user", content: "x".repeat(4001), pathwayId: null }).mutations).toEqual([]);
+    expect(guardMessage(s, { role: "user", content: "hi", pathwayId: OTHER_PATHWAY }).mutations).toEqual([]);
+    expect(guardMessage(s, { role: "user", content: "hi", pathwayId: null, status: "interrupted" }).mutations).toEqual([]);
   });
 });

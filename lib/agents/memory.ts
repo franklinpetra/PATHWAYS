@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { generateStructured } from "@/lib/ai/openrouter";
+import { generateStructured, type ChatMessage } from "@/lib/ai/openrouter";
 import { CONTEXT_ITEM_TYPES, type ContextItem } from "@/lib/db/types";
 import type { ContextCreateProposal, ContextStaleProposal } from "@/lib/validation/state-guard";
 
@@ -39,6 +39,8 @@ const SYSTEM_PROMPT = `You maintain a private record of what a person has shared
 
 Given their latest message and their existing context items, propose changes:
 
+Only the latest message can create user_authored items. Earlier conversation is there to help you understand it.
+
 1. creates: new, durable facts about the person — goals, interests, constraints, preferences, circumstances, experience, strengths, concerns, open questions.
    - If the person said it, set provenance "user_authored" and copy their exact words into user_language. Use "thought", "possibility", or "confirmed_context" (a plain statement of fact about themselves).
    - If you are reading between the lines, set provenance "ai_inferred", user_language null, semantic_status "inference" or "possibility", and give a confidence.
@@ -53,7 +55,8 @@ Return empty arrays when nothing changes. Most turns change little.`;
 
 export interface MemoryInput {
   userMessage: string;
-  priorAssistantMessage: string | null;
+  /** Recent turns from the stored transcript, oldest first. Context only: quotes must come from userMessage. */
+  recentMessages: ChatMessage[];
   contextItems: ContextItem[];
   signal?: AbortSignal;
 }
@@ -88,7 +91,11 @@ export async function proposeContextMutations(input: MemoryInput): Promise<Memor
         role: "user",
         content: [
           `Existing context items:\n${existing}`,
-          input.priorAssistantMessage ? `Assistant's previous message:\n${input.priorAssistantMessage}` : null,
+          input.recentMessages.length
+            ? `Earlier conversation (context only; quote only from the latest message):\n${input.recentMessages
+                .map((m) => `${m.role === "user" ? "Person" : "Assistant"}: ${m.content}`)
+                .join("\n")}`
+            : null,
           `Person's latest message:\n${input.userMessage}`,
         ]
           .filter(Boolean)

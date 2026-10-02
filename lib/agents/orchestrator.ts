@@ -2,10 +2,11 @@ import "server-only";
 import { z } from "zod";
 import { generateStructured, streamChat, type ChatMessage } from "@/lib/ai/openrouter";
 import { applyMutations } from "@/lib/db/mutations";
-import { listLiveContextItems, loadGuardState } from "@/lib/db/queries";
+import { listLiveContextItems, listMessages, loadGuardState } from "@/lib/db/queries";
 import { WIN_EVENT_TYPES, type Action, type ContextItem, type Pathway, type ReadinessState } from "@/lib/db/types";
 import {
   guardMemoryProposals,
+  guardMessage,
   guardStepProposals,
   guardWinCandidates,
   isVisibleStep,
@@ -39,13 +40,15 @@ export type { ChatEvent };
 export interface TurnInput {
   userId: string;
   message: string | null;
-  history: ChatMessage[];
   pathwayId: string | null;
   userActions: UserAction[];
   signal?: AbortSignal;
 }
 
+/** Messages of prior conversation sent with each reply. */
 const HISTORY_TURNS = 12;
+/** Messages of prior conversation the Memory Agent reads for context. */
+const MEMORY_TURNS = 6;
 
 export async function runTurn(input: TurnInput, emit: (event: ChatEvent) => void): Promise<void> {
   let state = await loadGuardState(input.userId);
@@ -78,13 +81,18 @@ async function converse(
   pathway: Pathway | null,
   emit: (event: ChatEvent) => void,
 ): Promise<WinCandidate[]> {
-  const history = input.history.slice(-HISTORY_TURNS);
-  const priorAssistantMessage = history.findLast((m) => m.role === "assistant")?.content ?? null;
+  const pathwayId = pathway?.id ?? null;
+  // History comes from the stored transcript, never from the client.
+  const history: ChatMessage[] = (await listMessages(state.userId, pathwayId, HISTORY_TURNS)).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+  await applyMutations(acceptedOrThrow(guardMessage(state, { role: "user", content: message, pathwayId })));
 
   const [memory, facts] = await Promise.allSettled([
     proposeContextMutations({
       userMessage: message,
-      priorAssistantMessage,
+      recentMessages: history.slice(-MEMORY_TURNS),
       contextItems: state.contextItems,
       signal: input.signal,
     }),
@@ -112,16 +120,30 @@ async function converse(
 
   const prompt = buildSystemPrompt({ contextItems: state.contextItems, pathway, openSteps, findings });
   let reply = "";
-  for await (const delta of streamChat(
-    [{ role: "system", content: prompt }, ...history, { role: "user", content: message }],
-    { temperature: 0.6, signal: input.signal },
-  )) {
-    reply += delta;
-    emit({ type: "text", delta });
+  try {
+    for await (const delta of streamChat(
+      [{ role: "system", content: prompt }, ...history, { role: "user", content: message }],
+      { temperature: 0.6, signal: input.signal },
+    )) {
+      reply += delta;
+      emit({ type: "text", delta });
+    }
+  } catch (err) {
+    // Keep whatever the person already saw.
+    if (reply.trim()) {
+      await commitQuietly(
+        "interrupted reply",
+        guardMessage(state, { role: "assistant", content: reply, pathwayId, status: "interrupted" }),
+      );
+    }
+    throw err;
   }
 
   const places = citedPlaces(reply, findings.claims);
   if (places.length > 0) emit({ type: "places", items: places });
+  if (reply.trim()) {
+    await commitQuietly("reply", guardMessage(state, { role: "assistant", content: reply, pathwayId, places }));
+  }
 
   if (!pathway || !reply.trim()) return [];
 
@@ -166,6 +188,11 @@ function citedPlaces(reply: string, claims: SourcedClaim[]): VerifiedPlace[] {
         ]
       : [],
   );
+}
+
+function acceptedOrThrow(result: GuardResult) {
+  if (result.rejections.length > 0) throw new Error(`State guard rejected: ${result.rejections[0].reason}`);
+  return result.mutations;
 }
 
 /** Applies guard output; a failure here degrades the turn rather than ending it. */

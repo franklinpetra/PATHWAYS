@@ -12,11 +12,13 @@ import type { Action, Pathway, ProgressEvent } from "@/lib/db/types";
 import type { UserAction, WinCandidate } from "@/lib/validation/state-guard";
 import type { VerifiedPlace } from "@/lib/workspace/events";
 
-interface Message {
+export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   status: "streaming" | "done" | "error";
+  /** A stored reply that was stopped or failed partway. */
+  interrupted?: boolean;
   places?: VerifiedPlace[];
 }
 
@@ -27,6 +29,8 @@ interface WorkspaceProps {
   initialTopics: string[];
   /** A place sent from another device via the handoff link. */
   sharedPlace: { query: string; label: string | null } | null;
+  /** The stored thread, oldest first. */
+  initialMessages: Message[];
 }
 
 const READINESS_LABEL: Record<Pathway["readiness_state"], string> = {
@@ -36,8 +40,8 @@ const READINESS_LABEL: Record<Pathway["readiness_state"], string> = {
   returning: "Returning",
 };
 
-export function Workspace({ pathway, initialSteps, initialWins, initialTopics, sharedPlace }: WorkspaceProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function Workspace({ pathway, initialSteps, initialWins, initialTopics, sharedPlace, initialMessages }: WorkspaceProps) {
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [topics, setTopics] = useState(initialTopics);
   const [steps, setSteps] = useState(initialSteps);
   const [wins, setWins] = useState(initialWins);
@@ -56,7 +60,6 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
 
   async function send(text: string) {
     if (streaming) return;
-    const history = messages.filter((m) => m.status === "done").map(({ role, content }) => ({ role, content }));
     const assistantId = crypto.randomUUID();
     setMessages((all) => [
       ...all,
@@ -69,7 +72,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
     abortRef.current = controller;
     try {
       await streamChatTurn(
-        { message: text, history, pathwayId: pathway.id },
+        { message: text, pathwayId: pathway.id },
         (event) => {
           switch (event.type) {
             case "text":
@@ -224,6 +227,7 @@ function Thread({
                 <span className="inline-block animate-pulse">Thinking…</span>
               </p>
             )}
+            {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
             {m.status === "error" && (
               <p role="alert" className="mt-2 text-sm text-muted-foreground">
                 Something interrupted this reply.

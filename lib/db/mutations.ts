@@ -31,6 +31,8 @@ function apply(m: ValidatedMutation) {
       return db().from("actions").update(m.patch).eq("id", m.id);
     case "insert_progress_event":
       return db().from("progress_events").insert(m.row);
+    case "insert_message":
+      return db().from("messages").insert(m.row);
     case "update_progress_event":
       return db().from("progress_events").update(m.patch).eq("id", m.id).eq("user_id", m.userId);
   }

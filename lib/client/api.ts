@@ -3,7 +3,6 @@ import type { ChatEvent, PanelsResponse } from "@/lib/workspace/events";
 
 export interface ChatRequest {
   message: string;
-  history: { role: "user" | "assistant"; content: string }[];
   pathwayId: string;
 }
 
