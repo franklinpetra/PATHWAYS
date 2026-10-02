@@ -1,6 +1,17 @@
 import "server-only";
 import { db } from "./supabase";
-import type { Action, ContextItem, Occupation, Pathway, Place, ProgramMatch, ProgressEvent, StoredMessage, User } from "./types";
+import type {
+  Action,
+  Apprenticeship,
+  ContextItem,
+  Occupation,
+  Pathway,
+  Place,
+  ProgressEvent,
+  StoredMessage,
+  TrainingProgramMatch,
+  User,
+} from "./types";
 import type { GuardState } from "@/lib/validation/state-guard";
 
 // Read-only access. Writes live in ./mutations.ts and accept only guard-validated input.
@@ -24,6 +35,28 @@ export async function listLiveContextItems(userId: string): Promise<ContextItem[
     .in("temporal_status", ["current", "stale"])
     .order("updated_at", { ascending: false })
     .limit(200);
+  return unwrap<ContextItem[]>(res, "context items");
+}
+
+export async function listArchivedContextItems(userId: string): Promise<ContextItem[]> {
+  const res = await db()
+    .from("context_items")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("temporal_status", "archived")
+    .order("updated_at", { ascending: false })
+    .limit(200);
+  return unwrap<ContextItem[]>(res, "deleted context items");
+}
+
+/** Everything remembered, in every state, for the My Story page. */
+export async function listAllContextItems(userId: string): Promise<ContextItem[]> {
+  const res = await db()
+    .from("context_items")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(500);
   return unwrap<ContextItem[]>(res, "context items");
 }
 
@@ -77,13 +110,14 @@ export async function listMessages(userId: string, pathwayId: string | null, lim
 
 /** Snapshot of a person's state for the state guard. */
 export async function loadGuardState(userId: string): Promise<GuardState> {
-  const [contextItems, pathways, progressEvents] = await Promise.all([
+  const [contextItems, archivedContextItems, pathways, progressEvents] = await Promise.all([
     listLiveContextItems(userId),
+    listArchivedContextItems(userId),
     listPathways(userId),
     listRecentWins(userId, 50),
   ]);
   const actions = await listActionsForPathways(pathways.map((p) => p.id));
-  return { userId, contextItems, pathways, actions, progressEvents };
+  return { userId, contextItems, archivedContextItems, pathways, actions, progressEvents };
 }
 
 // ---------------------------------------------------------------------------
@@ -114,19 +148,34 @@ export async function findPlace(name: string, state = "WA"): Promise<Place | nul
   return unwrap<Place | null>(res, "place");
 }
 
-export async function searchPrograms(params: {
+export async function searchTrainingPrograms(params: {
   socCodes: string[];
   latitude: number | null;
   longitude: number | null;
   radiusMiles: number | null;
   limit?: number;
-}): Promise<ProgramMatch[]> {
-  const res = await db().rpc("search_programs", {
+}): Promise<TrainingProgramMatch[]> {
+  const res = await db().rpc("search_training_programs", {
     p_soc_codes: params.socCodes,
     p_latitude: params.latitude,
     p_longitude: params.longitude,
     p_radius_miles: params.radiusMiles,
     p_limit: params.limit ?? 8,
   });
-  return unwrap<ProgramMatch[]>(res, "programs");
+  return unwrap<TrainingProgramMatch[]>(res, "training programs");
+}
+
+export async function searchApprenticeships(params: {
+  socCodes: string[];
+  trade: string | null;
+  county: string | null;
+  limit?: number;
+}): Promise<Apprenticeship[]> {
+  const res = await db().rpc("search_apprenticeships", {
+    p_soc_codes: params.socCodes,
+    p_trade: params.trade ? escapeLike(params.trade.trim()) : null,
+    p_county: params.county,
+    p_limit: params.limit ?? 6,
+  });
+  return unwrap<Apprenticeship[]>(res, "apprenticeships");
 }

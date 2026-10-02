@@ -5,14 +5,15 @@ import { useMemo, useState, type ReactNode } from "react";
 import { formatIsoDate } from "@/lib/client/format";
 import { detectAddresses, detectEventDates, type DetectedDate } from "@/lib/places/detect";
 import { buildIcs, mapsUrl, type MapTarget } from "@/lib/places/links";
-import type { VerifiedPlace } from "@/lib/workspace/events";
+import { formatSourceDate } from "@/lib/workspace/attribution";
+import type { SourceAttribution, VerifiedPlace } from "@/lib/workspace/events";
 import { HandoffDialog } from "./HandoffDialog";
 import { usePlatform } from "./usePlatform";
 
 export interface ToolbarPlace extends MapTarget {
   label: string | null;
   /** Present when the place comes from an authoritative source rather than text detection. */
-  verified?: { authority: string; asOf: string };
+  verified?: SourceAttribution;
 }
 
 function normalize(text: string): string {
@@ -26,7 +27,7 @@ export function placesForMessage(text: string, verified: VerifiedPlace[] = []): 
     query: v.address,
     latitude: v.latitude,
     longitude: v.longitude,
-    verified: { authority: v.authority, asOf: v.asOf },
+    verified: v.source,
   }));
   const known = places.map((p) => normalize(p.query));
   for (const address of detectAddresses(text)) {
@@ -92,7 +93,7 @@ export function PlaceActions({ place, pathwayId, allowHandoff = true }: { place:
           <span className="text-muted-foreground">{place.query}</span>
           {place.verified && (
             <span className="block text-[11px] text-muted-foreground">
-              Verified · {place.verified.authority}, as of {formatIsoDate(place.verified.asOf)}
+              Verified · {place.verified.verificationAuthority}, as of {formatSourceDate(place.verified.asOf)}
             </span>
           )}
         </span>

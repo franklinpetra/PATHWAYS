@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { MessageText } from "@/components/chat/MessageText";
 import { MessageToolbar, PlaceActions } from "@/components/chat/PlaceToolbar";
+import { SourceList, citationAnchor } from "@/components/chat/SourceList";
 import { SuggestedTopics } from "@/components/chat/SuggestedTopics";
 import { NextSteps } from "@/components/dashboard/NextSteps";
 import { RecentWins } from "@/components/dashboard/RecentWins";
 import { postWorkspaceActions, streamChatTurn } from "@/lib/client/api";
 import type { Action, Pathway, ProgressEvent } from "@/lib/db/types";
 import type { UserAction, WinCandidate } from "@/lib/validation/state-guard";
-import type { VerifiedPlace } from "@/lib/workspace/events";
+import type { Citation, VerifiedPlace } from "@/lib/workspace/events";
 
 export interface Message {
   id: string;
@@ -20,6 +21,7 @@ export interface Message {
   /** A stored reply that was stopped or failed partway. */
   interrupted?: boolean;
   places?: VerifiedPlace[];
+  citations?: Citation[];
 }
 
 interface WorkspaceProps {
@@ -77,6 +79,9 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
           switch (event.type) {
             case "text":
               updateMessage(assistantId, (m) => ({ ...m, content: m.content + event.delta }));
+              break;
+            case "citations":
+              updateMessage(assistantId, (m) => ({ ...m, citations: event.items }));
               break;
             case "places":
               updateMessage(assistantId, (m) => ({ ...m, places: event.items }));
@@ -219,25 +224,52 @@ function Thread({
             </p>
           </div>
         ) : (
-          <article key={m.id} className="max-w-prose text-[15px] leading-relaxed">
-            {m.content ? (
-              <MessageText text={m.content} />
-            ) : (
-              <p className="text-muted-foreground" aria-label="Thinking">
-                <span className="inline-block animate-pulse">Thinking…</span>
-              </p>
-            )}
-            {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
-            {m.status === "error" && (
-              <p role="alert" className="mt-2 text-sm text-muted-foreground">
-                Something interrupted this reply.
-              </p>
-            )}
-            {m.status === "done" && <MessageToolbar text={m.content} verified={m.places} pathwayId={pathwayId} />}
-          </article>
+          <AssistantMessage key={m.id} message={m} pathwayId={pathwayId} />
         ),
       )}
       <div ref={endRef} className="h-px" />
     </div>
+  );
+}
+
+function AssistantMessage({ message: m, pathwayId }: { message: Message; pathwayId: string }) {
+  const citations = useMemo(() => m.citations ?? [], [m.citations]);
+  const citable = useMemo(() => new Set(citations.map((c) => c.index)), [citations]);
+  const [openSources, setOpenSources] = useState<ReadonlySet<number>>(new Set());
+
+  function toggle(index: number, open: boolean) {
+    setOpenSources((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }
+
+  function showSource(index: number) {
+    toggle(index, true);
+    requestAnimationFrame(() =>
+      document.getElementById(citationAnchor(m.id, index))?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+    );
+  }
+
+  return (
+    <article className="max-w-prose text-[15px] leading-relaxed">
+      {m.content ? (
+        <MessageText text={m.content} citable={citable} onCite={showSource} />
+      ) : (
+        <p className="text-muted-foreground" aria-label="Thinking">
+          <span className="inline-block animate-pulse">Thinking…</span>
+        </p>
+      )}
+      {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
+      {m.status === "error" && (
+        <p role="alert" className="mt-2 text-sm text-muted-foreground">
+          Something interrupted this reply.
+        </p>
+      )}
+      {m.status === "done" && <MessageToolbar text={m.content} verified={m.places} pathwayId={pathwayId} />}
+      {m.status !== "streaming" && <SourceList messageId={m.id} citations={citations} open={openSources} onToggle={toggle} />}
+    </article>
   );
 }

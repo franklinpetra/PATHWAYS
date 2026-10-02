@@ -3,20 +3,42 @@ import { Fragment, type ReactNode } from "react";
 /**
  * Minimal, safe rendering for assistant text: paragraphs, bullet and numbered
  * lists, **bold**, [n] citations, and bare links. No HTML is ever interpreted.
+ * Citations that match a known source become buttons that open its attribution.
  */
+
+interface CiteProps {
+  /** Citation numbers that have a source; others render as plain text. */
+  citable?: ReadonlySet<number>;
+  onCite?: (index: number) => void;
+}
 
 const INLINE = /(\*\*[^*]+\*\*|\[\d+\]|https?:\/\/[^\s)]+[^\s).,;:!?])/g;
 
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, cite: CiteProps): ReactNode[] {
   return text.split(INLINE).map((part, i) => {
     if (!part) return null;
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
-    if (/^\[\d+\]$/.test(part))
+    if (/^\[\d+\]$/.test(part)) {
+      const index = Number(part.slice(1, -1));
+      if (cite.onCite && cite.citable?.has(index)) {
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => cite.onCite!(index)}
+            aria-label={`Show source ${index}`}
+            className="ml-0.5 rounded align-super text-[0.7em] font-medium text-primary hover:underline"
+          >
+            {part}
+          </button>
+        );
+      }
       return (
-        <span key={i} className="ml-0.5 align-super text-[0.7em] font-medium text-primary">
+        <span key={i} className="ml-0.5 align-super text-[0.7em] text-muted-foreground">
           {part}
         </span>
       );
+    }
     if (/^https?:\/\//.test(part))
       return (
         <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-primary underline underline-offset-2">
@@ -55,7 +77,8 @@ function toBlocks(text: string): Block[] {
   return blocks.filter((b) => b.lines.length > 0);
 }
 
-export function MessageText({ text }: { text: string }) {
+export function MessageText({ text, citable, onCite }: { text: string } & CiteProps) {
+  const cite = { citable, onCite };
   return (
     <div className="space-y-3">
       {toBlocks(text).map((block, i) => {
@@ -63,7 +86,7 @@ export function MessageText({ text }: { text: string }) {
           case "h":
             return (
               <p key={i} className="font-semibold">
-                {renderInline(block.lines[0])}
+                {renderInline(block.lines[0], cite)}
               </p>
             );
           case "ul":
@@ -72,7 +95,7 @@ export function MessageText({ text }: { text: string }) {
             return (
               <List key={i} className={`space-y-1.5 pl-5 ${block.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-primary/60`}>
                 {block.lines.map((line, j) => (
-                  <li key={j}>{renderInline(line)}</li>
+                  <li key={j}>{renderInline(line, cite)}</li>
                 ))}
               </List>
             );
@@ -83,7 +106,7 @@ export function MessageText({ text }: { text: string }) {
                 {block.lines.map((line, j) => (
                   <Fragment key={j}>
                     {j > 0 && <br />}
-                    {renderInline(line)}
+                    {renderInline(line, cite)}
                   </Fragment>
                 ))}
               </p>

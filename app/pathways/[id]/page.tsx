@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/workspace/SiteHeader";
 import { Workspace } from "@/components/workspace/Workspace";
 import { getSessionUserId } from "@/lib/auth/session";
 import { getPathway, listMessages } from "@/lib/db/queries";
-import type { VerifiedPlace } from "@/lib/workspace/events";
+import type { Citation, VerifiedPlace } from "@/lib/workspace/events";
 import { loadPanels } from "@/lib/workspace/service";
 import { initialTopics } from "@/lib/workspace/topics";
 
@@ -52,6 +52,7 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
           status: "done",
           interrupted: m.status === "interrupted",
           places: m.places as VerifiedPlace[],
+          citations: m.citations as Citation[],
         }))}
       />
     </>

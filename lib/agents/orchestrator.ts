@@ -16,11 +16,12 @@ import {
   type UserAction,
   type WinCandidate,
 } from "@/lib/validation/state-guard";
-import type { ChatEvent, VerifiedPlace } from "@/lib/workspace/events";
+import { formatAttribution, traceClaims } from "@/lib/workspace/attribution";
+import type { ChatEvent } from "@/lib/workspace/events";
 import { applyUserActions, loadPanels } from "@/lib/workspace/service";
 import { sanitizeTopics } from "@/lib/workspace/topics";
 import { proposeContextMutations } from "./memory";
-import { findFacts, type FactFindings, type SourcedClaim } from "./retrieval";
+import { findFacts, type FactFindings } from "./retrieval";
 
 /**
  * Dialogue Orchestrator.
@@ -129,20 +130,22 @@ async function converse(
       emit({ type: "text", delta });
     }
   } catch (err) {
-    // Keep whatever the person already saw.
+    // Keep whatever the person already saw, with the sources it cited.
     if (reply.trim()) {
+      const { citations, places } = traceClaims(reply, findings.claims);
       await commitQuietly(
         "interrupted reply",
-        guardMessage(state, { role: "assistant", content: reply, pathwayId, status: "interrupted" }),
+        guardMessage(state, { role: "assistant", content: reply, pathwayId, status: "interrupted", citations, places }),
       );
     }
     throw err;
   }
 
-  const places = citedPlaces(reply, findings.claims);
+  const { citations, places } = traceClaims(reply, findings.claims);
+  if (citations.length > 0) emit({ type: "citations", items: citations });
   if (places.length > 0) emit({ type: "places", items: places });
   if (reply.trim()) {
-    await commitQuietly("reply", guardMessage(state, { role: "assistant", content: reply, pathwayId, places }));
+    await commitQuietly("reply", guardMessage(state, { role: "assistant", content: reply, pathwayId, places, citations }));
   }
 
   if (!pathway || !reply.trim()) return [];
@@ -168,26 +171,6 @@ async function converse(
     console.error("[orchestrator] candidate extraction failed", err);
     return [];
   }
-}
-
-/** Sourced places whose citation number [n] appears in the reply. */
-function citedPlaces(reply: string, claims: SourcedClaim[]): VerifiedPlace[] {
-  const cited = new Set([...reply.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) - 1));
-  return claims.flatMap((claim, index) =>
-    cited.has(index) && claim.place
-      ? [
-          {
-            label: claim.place.name,
-            address: claim.place.address,
-            latitude: claim.place.latitude,
-            longitude: claim.place.longitude,
-            authority: claim.authority,
-            asOf: claim.asOf,
-            sourceUrl: claim.sourceUrl,
-          },
-        ]
-      : [],
-  );
 }
 
 function acceptedOrThrow(result: GuardResult) {
@@ -233,7 +216,7 @@ How to respond
 - Never mention internal systems, records, or agents, and never say you saved or noted something.
 
 Facts
-- State program, occupation, deadline, eligibility, cost, wage, or availability details only if they appear under "Verified sources". Cite each as [n] with the authority and its as-of date.
+- State program, apprenticeship, occupation, deadline, eligibility, cost, completion, wage, or availability details only if they appear under "Verified sources". Put its [n] right after each such detail. The person sees the full source, period, and authority for every [n], so don't repeat them or invent your own citations.
 - If something isn't in Verified sources, say you don't have verified information and suggest who would know, without inventing specifics.
 - Never invent deadlines, eligibility rules, wage figures, or seat counts.
 
@@ -283,7 +266,7 @@ function buildSystemPrompt(args: {
   sections.push(`Known context:\n${context.length ? context.join("\n") : "(nothing yet)"}`);
 
   const sources = args.findings.claims.map(
-    (c, i) => `[${i + 1}] ${c.statement} Source: ${c.authority}, as of ${c.asOf}. ${c.sourceUrl}`,
+    (c, i) => `[${i + 1}] ${c.statement} ${formatAttribution(c.source)}`,
   );
   sections.push(`Verified sources:\n${sources.length ? sources.join("\n") : "(none for this message)"}`);
   if (args.findings.notes.length > 0) {

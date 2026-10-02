@@ -64,7 +64,15 @@ const pathway: Pathway = {
 };
 
 function state(overrides: Partial<GuardState> = {}): GuardState {
-  return { userId: USER, contextItems: [], pathways: [pathway], actions: [], progressEvents: [], ...overrides };
+  return {
+    userId: USER,
+    contextItems: [],
+    archivedContextItems: [],
+    pathways: [pathway],
+    actions: [],
+    progressEvents: [],
+    ...overrides,
+  };
 }
 
 function create(overrides: Partial<ContextCreateProposal>): ContextCreateProposal {
@@ -438,5 +446,77 @@ describe("messages", () => {
     expect(guardMessage(s, { role: "user", content: "x".repeat(4001), pathwayId: null }).mutations).toEqual([]);
     expect(guardMessage(s, { role: "user", content: "hi", pathwayId: OTHER_PATHWAY }).mutations).toEqual([]);
     expect(guardMessage(s, { role: "user", content: "hi", pathwayId: null, status: "interrupted" }).mutations).toEqual([]);
+  });
+});
+
+describe("memory controls", () => {
+  it("keep turns an inference into approved context and refreshes stale items", () => {
+    const inferred = item({ id: "i1", provenance: "ai_inferred", semantic_status: "inference", temporal_status: "stale" });
+    const r = guardUserActions(state({ contextItems: [inferred] }), [{ type: "keep_context_item", contextItemId: "i1" }]);
+    expect(r.mutations[0]).toMatchObject({
+      patch: { temporal_status: "current", provenance: "user_approved", semantic_status: "confirmed_context" },
+    });
+  });
+
+  it("keep leaves the person's own decisions as they are", () => {
+    const goal = item({ id: "g", semantic_status: "confirmed_goal" });
+    const r = guardUserActions(state({ contextItems: [goal] }), [{ type: "keep_context_item", contextItemId: "g" }]);
+    expect(r.mutations[0]).toMatchObject({ patch: { semantic_status: "confirmed_goal", provenance: "user_authored" } });
+  });
+
+  it("edit stores the person's words as a new item and supersedes the old one", () => {
+    const inferred = item({ id: "i1", type: "constraint", provenance: "ai_inferred", semantic_status: "inference" });
+    const r = guardUserActions(state({ contextItems: [inferred] }), [
+      { type: "edit_context_item", contextItemId: "i1", text: "  I can only study after 7pm  " },
+    ]);
+    const [insert, update] = r.mutations;
+    expect(insert).toMatchObject({
+      op: "insert_context_item",
+      row: {
+        type: "constraint",
+        display_text: "I can only study after 7pm",
+        user_language: "I can only study after 7pm",
+        provenance: "user_authored",
+        semantic_status: "confirmed_context",
+      },
+    });
+    expect(update).toMatchObject({
+      id: "i1",
+      patch: { temporal_status: "superseded", superseded_by: insert.op === "insert_context_item" && insert.row.id },
+    });
+  });
+
+  it("delete archives the item, and it can't be acted on again in the same request", () => {
+    const r = guardUserActions(state({ contextItems: [item({ id: "x" })] }), [
+      { type: "archive_context_item", contextItemId: "x" },
+      { type: "keep_context_item", contextItemId: "x" },
+      { type: "archive_context_item", contextItemId: "x" },
+    ]);
+    expect(r.mutations).toEqual([expect.objectContaining({ patch: { temporal_status: "archived" } })]);
+    expect(r.rejections).toHaveLength(2);
+  });
+
+  it("rejects empty edits and unknown items", () => {
+    const s = state({ contextItems: [item({ id: "x" })] });
+    expect(guardUserActions(s, [{ type: "edit_context_item", contextItemId: "x", text: "   " }]).mutations).toEqual([]);
+    expect(guardUserActions(s, [{ type: "archive_context_item", contextItemId: "nope" }]).mutations).toEqual([]);
+  });
+
+  it("the AI cannot re-infer something the person deleted, but the person can say it again", () => {
+    const deleted = item({ id: "d", display_text: "You work evenings.", temporal_status: "archived" });
+    const s = state({ archivedContextItems: [deleted] });
+    const inferred = guardMemoryProposals(s, "nights are long", { creates: [create({})], stale: [] });
+    expect(inferred.rejections[0].reason).toMatch(/deleted/);
+    const restated = guardMemoryProposals(s, "I work evenings again", {
+      creates: [
+        create({
+          provenance: "user_authored",
+          semantic_status: "confirmed_context",
+          user_language: "I work evenings",
+        }),
+      ],
+      stale: [],
+    });
+    expect(restated.mutations).toHaveLength(1);
   });
 });

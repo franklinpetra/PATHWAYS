@@ -1,20 +1,37 @@
 import type { Action, ProgressEvent } from "@/lib/db/types";
 import type { WinCandidate } from "@/lib/validation/state-guard";
 
+/** Where a claim comes from: [Source Name | Observation Period / As-of Date | Verification Authority]. */
+export interface SourceAttribution {
+  name: string;
+  observationPeriod: string | null;
+  /** ISO date the data was current. */
+  asOf: string;
+  verificationAuthority: string;
+  url: string;
+}
+
+/** A sourced claim an assistant reply cited as [index]. */
+export interface Citation {
+  index: number;
+  kind: "occupation" | "program" | "apprenticeship";
+  statement: string;
+  source: SourceAttribution;
+}
+
 /** A location backed by an authoritative source, cited in an assistant reply. */
 export interface VerifiedPlace {
   label: string;
   address: string;
   latitude: number | null;
   longitude: number | null;
-  authority: string;
-  asOf: string;
-  sourceUrl: string;
+  source: SourceAttribution;
 }
 
 /** One line of the /api/chat NDJSON stream. */
 export type ChatEvent =
   | { type: "text"; delta: string }
+  | { type: "citations"; items: Citation[] }
   | { type: "places"; items: VerifiedPlace[] }
   | { type: "topics"; items: string[] }
   | { type: "next_steps"; items: Action[] }

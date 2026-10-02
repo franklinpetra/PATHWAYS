@@ -32,6 +32,8 @@ import {
  *    Ordering, "Not now", removal, and due dates are the person's alone; the AI never sets a date.
  *  - Recent Wins must be meaningful pathway actions, never logins, sessions, or chat counts.
  *  - A current user statement silently supersedes the stale context it contradicts.
+ *  - The person can keep, rewrite, or delete anything remembered. Deleted items are archived,
+ *    leave every prompt, and are not re-inferred unless the person says them again.
  */
 
 // ---------------------------------------------------------------------------
@@ -52,7 +54,7 @@ type ProgressEventInsert = Pick<
   "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning"
 >;
 
-type MessageInsert = Pick<StoredMessage, "user_id" | "pathway_id" | "role" | "content" | "status" | "places">;
+type MessageInsert = Pick<StoredMessage, "user_id" | "pathway_id" | "role" | "content" | "status" | "places" | "citations">;
 
 type Mutation =
   | { op: "insert_context_item"; row: ContextItemInsert }
@@ -85,6 +87,8 @@ export interface GuardState {
   userId: string;
   /** Current and stale items. */
   contextItems: ContextItem[];
+  /** Items the person deleted. Used only to keep the AI from re-inferring them. */
+  archivedContextItems: ContextItem[];
   pathways: Pathway[];
   /** All actions on the person's pathways, including removed ones. */
   actions: Action[];
@@ -228,6 +232,7 @@ export function guardMemoryProposals(
   const existingText = new Set(
     state.contextItems.filter((i) => i.temporal_status === "current").map((i) => normalizeForMatch(i.display_text)),
   );
+  const deletedText = new Set(state.archivedContextItems.map((i) => normalizeForMatch(i.display_text)));
 
   for (const p of proposals.creates) {
     const label = `create context "${p.display_text}"`;
@@ -256,6 +261,11 @@ export function guardMemoryProposals(
       provenance = "ai_inferred";
     } else {
       reject(`provenance '${p.provenance}' requires user approval or a source`);
+      continue;
+    }
+
+    if (provenance === "ai_inferred" && deletedText.has(normalizeForMatch(displayText))) {
+      reject("the person deleted this; only they can bring it back");
       continue;
     }
 
@@ -482,9 +492,10 @@ export interface MessageProposal {
   pathwayId: string | null;
   status?: MessageStatus;
   places?: unknown[];
+  citations?: unknown[];
 }
 
-/** Records one message. Only assistant replies may be 'interrupted' or carry places. */
+/** Records one message. Only assistant replies may be 'interrupted' or carry places and citations. */
 export function guardMessage(state: GuardState, p: MessageProposal): GuardResult {
   const reject = (reason: string): GuardResult => ({
     mutations: [],
@@ -494,8 +505,8 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
   if (!content) return reject("message is empty");
   if (content.length > MESSAGE_LIMITS[p.role]) return reject("message is too long");
   if (p.pathwayId && !ownsPathway(state, p.pathwayId)) return reject("pathway not found");
-  if (p.role === "user" && (p.status === "interrupted" || (p.places?.length ?? 0) > 0)) {
-    return reject("user messages are always complete and carry no places");
+  if (p.role === "user" && (p.status === "interrupted" || (p.places?.length ?? 0) > 0 || (p.citations?.length ?? 0) > 0)) {
+    return reject("user messages are always complete and carry no places or citations");
   }
   return {
     mutations: [
@@ -508,6 +519,7 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
           content,
           status: p.status ?? "complete",
           places: p.places ?? [],
+          citations: p.citations ?? [],
         },
       }),
     ],
@@ -519,15 +531,33 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
 // Explicit user actions (UI controls, never model interpretation)
 // ---------------------------------------------------------------------------
 
+const saveInterestSchema = z.object({ type: z.literal("save_interest"), contextItemId: z.uuid() });
+const confirmGoalSchema = z.object({ type: z.literal("confirm_goal"), contextItemId: z.uuid() });
+const keepItemSchema = z.object({ type: z.literal("keep_context_item"), contextItemId: z.uuid() });
+const editItemSchema = z.object({ type: z.literal("edit_context_item"), contextItemId: z.uuid(), text: z.string() });
+const archiveItemSchema = z.object({ type: z.literal("archive_context_item"), contextItemId: z.uuid() });
+
+/** Controls on the My Story & AI Memory page. */
+export const memoryActionSchema = z.discriminatedUnion("type", [
+  saveInterestSchema,
+  confirmGoalSchema,
+  keepItemSchema,
+  editItemSchema,
+  archiveItemSchema,
+]);
+
 export const userActionSchema = z.discriminatedUnion("type", [
+  saveInterestSchema,
+  confirmGoalSchema,
+  keepItemSchema,
+  editItemSchema,
+  archiveItemSchema,
   z.object({ type: z.literal("adopt_step"), actionId: z.uuid() }),
   z.object({ type: z.literal("complete_step"), actionId: z.uuid() }),
   z.object({ type: z.literal("postpone_step"), actionId: z.uuid() }),
   z.object({ type: z.literal("remove_step"), actionId: z.uuid() }),
   z.object({ type: z.literal("reorder_steps"), pathwayId: z.uuid(), actionIds: z.array(z.uuid()).min(1).max(20) }),
   z.object({ type: z.literal("set_step_due"), actionId: z.uuid(), dueDate: z.iso.date().nullable() }),
-  z.object({ type: z.literal("save_interest"), contextItemId: z.uuid() }),
-  z.object({ type: z.literal("confirm_goal"), contextItemId: z.uuid() }),
   z.object({
     type: z.literal("record_win"),
     win: z.object({
@@ -675,6 +705,79 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
             },
           }),
         );
+        break;
+      }
+
+      case "keep_context_item": {
+        const item = itemsById.get(action.contextItemId);
+        if (!item) {
+          reject("item not found or already removed");
+          break;
+        }
+        // Keeping means "this is right": an inference becomes something the person approved.
+        const patch: ContextItemPatch = {
+          temporal_status: "current",
+          provenance: item.provenance === "ai_inferred" ? "user_approved" : item.provenance,
+          semantic_status: item.semantic_status === "inference" ? "confirmed_context" : item.semantic_status,
+        };
+        result.mutations.push(seal({ op: "update_context_item", id: item.id, userId: state.userId, patch }));
+        Object.assign(item, patch);
+        break;
+      }
+
+      case "edit_context_item": {
+        const item = itemsById.get(action.contextItemId);
+        const text = cleanText(action.text, LIMITS.displayText);
+        if (!item) {
+          reject("item not found or already removed");
+          break;
+        }
+        if (!text) {
+          reject("text is empty or too long");
+          break;
+        }
+        // The rewrite is the person's own words; the original is kept as superseded history.
+        const id = crypto.randomUUID();
+        result.mutations.push(
+          seal({
+            op: "insert_context_item",
+            row: {
+              id,
+              user_id: state.userId,
+              type: item.type,
+              user_language: text,
+              display_text: text,
+              provenance: "user_authored",
+              semantic_status: item.semantic_status === "inference" ? "confirmed_context" : item.semantic_status,
+              temporal_status: "current",
+              confidence: null,
+            },
+          }),
+          seal({
+            op: "update_context_item",
+            id: item.id,
+            userId: state.userId,
+            patch: { temporal_status: "superseded", superseded_by: id },
+          }),
+        );
+        itemsById.delete(item.id);
+        break;
+      }
+
+      case "archive_context_item": {
+        const item = itemsById.get(action.contextItemId);
+        if (!item) {
+          reject("item not found or already removed");
+          break;
+        }
+        if (!canTransitionTemporal(item.temporal_status, "archived")) {
+          reject(`cannot delete a '${item.temporal_status}' item`);
+          break;
+        }
+        result.mutations.push(
+          seal({ op: "update_context_item", id: item.id, userId: state.userId, patch: { temporal_status: "archived" } }),
+        );
+        itemsById.delete(item.id);
         break;
       }
 

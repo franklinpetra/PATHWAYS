@@ -141,13 +141,19 @@ export interface ProgressEvent {
   created_at: string;
 }
 
-export interface Occupation {
+/** Uniform attribution carried by every row in a source table. */
+export interface SourceColumns {
+  source_name: string;
+  source_url: string;
+  observation_period: string | null;
+  source_as_of: string;
+  verification_authority: string;
+}
+
+export interface Occupation extends SourceColumns {
   onet_soc_code: string;
   title: string;
   description: string | null;
-  source_authority: string;
-  source_url: string;
-  source_as_of: string;
 }
 
 export interface Place {
@@ -159,8 +165,8 @@ export interface Place {
   longitude: number;
 }
 
-/** Row shape returned by the search_programs() SQL function. */
-export interface ProgramMatch {
+/** Row shape returned by the search_training_programs() SQL function. */
+export interface TrainingProgramMatch extends SourceColumns {
   id: string;
   title: string;
   provider_name: string;
@@ -172,10 +178,28 @@ export interface ProgramMatch {
   postal_code: string | null;
   latitude: number | null;
   longitude: number | null;
-  source_authority: string;
-  source_url: string;
-  source_as_of: string;
+  /** Published estimate in USD; cost_basis says what it covers. */
+  estimated_cost_usd: number | null;
+  cost_basis: string | null;
+  /** 0..1 for the observation period. */
+  completion_rate: number | null;
   distance_miles: number | null;
+}
+
+/** A registered apprenticeship from Washington L&I ARTS. */
+export interface Apprenticeship extends SourceColumns {
+  id: string;
+  source_record_id: string;
+  trade: string;
+  sponsor: string;
+  counties: string[];
+  onet_soc_codes: string[];
+  requirements: string | null;
+  term_hours: number | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_url: string | null;
 }
 
 export interface StoredMessage {
@@ -187,5 +211,7 @@ export interface StoredMessage {
   status: MessageStatus;
   /** VerifiedPlace[] for assistant replies. */
   places: unknown[];
+  /** Citation[] for assistant replies: the sourced claims the reply cited. */
+  citations: unknown[];
   created_at: string;
 }
