@@ -14,7 +14,7 @@ export interface SourceAttribution {
 /** A sourced claim an assistant reply cited as [index]. */
 export interface Citation {
   index: number;
-  kind: "occupation" | "program" | "apprenticeship";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure";
   statement: string;
   source: SourceAttribution;
 }
@@ -33,6 +33,8 @@ export type ChatEvent =
   | { type: "text"; delta: string }
   | { type: "citations"; items: Citation[] }
   | { type: "places"; items: VerifiedPlace[] }
+  /** Money or percentage figures in the reply that matched no verified source or the person's own words. */
+  | { type: "grounding"; unverifiedFigures: string[] }
   | { type: "topics"; items: string[] }
   | { type: "next_steps"; items: Action[] }
   | { type: "wins"; recent: ProgressEvent[]; candidates: WinCandidate[] }

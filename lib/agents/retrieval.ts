@@ -2,18 +2,29 @@ import "server-only";
 import { z } from "zod";
 import { generateStructured } from "@/lib/ai/openrouter";
 import { normalizeCounty } from "@/lib/data/washington/fields";
-import { findOccupations, findPlace, searchApprenticeships, searchTrainingPrograms } from "@/lib/db/queries";
+import { licensureClaims } from "@/lib/data/licensure/claims";
+import {
+  findOccupations,
+  findPlace,
+  searchApprenticeships,
+  searchCredentials,
+  searchTrainingPrograms,
+} from "@/lib/db/queries";
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
+import { supportedClaims } from "./grounding";
+import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
 
 /**
  * Fact-Finder Agent.
  *
  * The model's only job here is to extract search parameters. Every claim is then
  * assembled deterministically from rows in the Washington source tables (O*NET,
- * Career Bridge / SBCTC training programs, L&I ARTS apprenticeships), each carrying
- * its source name, observation period, as-of date, and verification authority. If the
- * tables have nothing, the agent says so; it never fills gaps.
+ * Career Bridge / SBCTC training programs, L&I ARTS apprenticeships, licensure records),
+ * each carrying its source name, observation period, as-of date, and verification
+ * authority. Claims without complete, dated provenance are dropped before the prompt.
+ * If the tables have nothing, the agent says the fact is unconfirmed; an empty result is
+ * never presented as proof that an opportunity doesn't exist.
  */
 
 const DEFAULT_RADIUS_MILES = 25;
@@ -37,7 +48,7 @@ Only extract what is stated or recorded. Never guess an occupation or location.`
 export interface SourcedClaim {
   /** Stable reference, e.g. "program:<uuid>" or "occupation:29-1141.00". */
   id: string;
-  kind: "occupation" | "program" | "apprenticeship";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure";
   statement: string;
   source: SourceAttribution;
   /** Present when the source gives a street address. */
@@ -83,9 +94,10 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
 
   const occupations = await findOccupations(phrase);
   const socCodes = occupations.map((o) => o.onet_soc_code);
-  if (occupations.length === 0) notes.push(`No occupation in the O*NET table matched "${phrase}".`);
+  if (occupations.length === 0) notes.push(`No occupation in the O*NET table matched "${phrase}" (unconfirmed, not proof it doesn't exist).`);
 
-  const [programs, apprenticeships] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [programs, apprenticeships, credentials] = await Promise.all([
     socCodes.length
       ? searchTrainingPrograms({
           socCodes,
@@ -95,25 +107,37 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
         })
       : Promise.resolve([]),
     searchApprenticeships({ socCodes, trade: phrase, county }),
+    searchCredentials({ socCodes, on: today }),
   ]);
+  const licensure = licensureClaims(credentials, today);
 
   const field = occupations.length ? occupations.map((o) => o.title).join(", ") : `"${phrase}"`;
   if (socCodes.length) {
     notes.push(
       `Training program search for ${field}${place ? ` within ${radius} miles of ${place.name}, ${place.state}` : ""}: ${count(programs.length)}.`,
     );
+    notes.push(
+      `Licensure search for ${field} in Washington: ${count(credentials.length)}${credentials.length ? "" : " (licensure requirements and fees unconfirmed)"}.`,
+    );
   }
   notes.push(`Registered apprenticeship search for ${field}${county ? ` in ${county} County` : ""}: ${count(apprenticeships.length)}.`);
+  if (apprenticeships.length === 0) {
+    notes.push(`No apprenticeship record found: unconfirmed, not proof none exist. Fallback: ${STATE_APPRENTICESHIP_OFFICE}.`);
+  }
+  notes.push(...licensure.notes);
 
-  return {
-    params,
-    claims: [
+  const { claims, dropped } = supportedClaims(
+    [
       ...occupations.map(occupationClaim),
       ...programs.map((p) => programClaim(p, place)),
       ...apprenticeships.map(apprenticeshipClaim),
+      ...licensure.claims,
     ],
-    notes,
-  };
+    today,
+  );
+  if (dropped > 0) notes.push(`${dropped} record${dropped === 1 ? " was" : "s were"} left out for missing or future-dated provenance.`);
+
+  return { params, claims, notes };
 }
 
 async function resolveLocation(location: string | null, notes: string[]): Promise<{ place: Place | null; county: string | null }> {
@@ -133,7 +157,7 @@ async function resolveLocation(location: string | null, notes: string[]): Promis
 }
 
 function count(n: number): string {
-  return `${n} result${n === 1 ? "" : "s"}`;
+  return n === 0 ? "0 results (unconfirmed, not proof none exist)" : `${n} result${n === 1 ? "" : "s"}`;
 }
 
 function clampRadius(value: number | null): number {

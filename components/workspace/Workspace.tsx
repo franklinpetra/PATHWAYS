@@ -22,6 +22,8 @@ export interface Message {
   interrupted?: boolean;
   places?: VerifiedPlace[];
   citations?: Citation[];
+  /** Figures in the reply that matched no verified source. */
+  unverifiedFigures?: string[];
 }
 
 interface WorkspaceProps {
@@ -82,6 +84,9 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
               break;
             case "citations":
               updateMessage(assistantId, (m) => ({ ...m, citations: event.items }));
+              break;
+            case "grounding":
+              updateMessage(assistantId, (m) => ({ ...m, unverifiedFigures: event.unverifiedFigures }));
               break;
             case "places":
               updateMessage(assistantId, (m) => ({ ...m, places: event.items }));
@@ -263,6 +268,12 @@ function AssistantMessage({ message: m, pathwayId }: { message: Message; pathway
         </p>
       )}
       {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
+      {(m.unverifiedFigures?.length ?? 0) > 0 && (
+        <p role="note" className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          Not verified: {m.unverifiedFigures!.join(", ")} didn&apos;t match any source Pathways checked. Treat{" "}
+          {m.unverifiedFigures!.length === 1 ? "it" : "them"} as unconfirmed.
+        </p>
+      )}
       {m.status === "error" && (
         <p role="alert" className="mt-2 text-sm text-muted-foreground">
           Something interrupted this reply.

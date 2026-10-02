@@ -53,6 +53,7 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
           interrupted: m.status === "interrupted",
           places: m.places as VerifiedPlace[],
           citations: m.citations as Citation[],
+          unverifiedFigures: m.unverified_figures ?? [],
         }))}
       />
     </>

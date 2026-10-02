@@ -213,5 +213,71 @@ export interface StoredMessage {
   places: unknown[];
   /** Citation[] for assistant replies: the sourced claims the reply cited. */
   citations: unknown[];
+  /** Figures in an assistant reply that matched no verified source. */
+  unverified_figures: string[];
   created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Licensure (see supabase/migrations/20261006000000_licensure.sql)
+// ---------------------------------------------------------------------------
+
+export const AUTHORITY_ROLES = ["governing", "discovery"] as const;
+export type AuthorityRole = (typeof AUTHORITY_ROLES)[number];
+
+export const CREDENTIAL_KINDS = ["license", "certification", "registration", "permit", "endorsement"] as const;
+export type CredentialKind = (typeof CREDENTIAL_KINDS)[number];
+
+export const FEE_TYPES = [
+  "application",
+  "exam",
+  "background_check",
+  "fingerprinting",
+  "initial_license",
+  "renewal",
+  "late_renewal",
+  "credential_evaluation",
+  "other",
+] as const;
+export type FeeType = (typeof FEE_TYPES)[number];
+
+export const AMOUNT_STATUSES = ["known", "zero", "unknown", "variable", "not_applicable"] as const;
+export type AmountStatus = (typeof AMOUNT_STATUSES)[number];
+
+export interface SourcedRecord {
+  source_name: string;
+  source_url: string;
+  observation_period: string | null;
+  source_as_of: string;
+  source_authority: { name: string; role: AuthorityRole };
+}
+
+export interface CredentialVersionRecord extends SourcedRecord {
+  id: string;
+  effective_from: string;
+  effective_to: string | null;
+  requirements: string | null;
+  duration_note: string | null;
+}
+
+export interface CredentialFeeRecord extends SourcedRecord {
+  fee_type: FeeType;
+  label: string | null;
+  amount_status: AmountStatus;
+  amount: number | null;
+  currency: string | null;
+  recurrence_months: number | null;
+  notes: string | null;
+}
+
+/** Row shape returned by the search_credentials() SQL function. */
+export interface CredentialMatch {
+  credential_id: string;
+  credential_name: string;
+  credential_kind: CredentialKind;
+  jurisdiction_code: string;
+  jurisdiction_name: string;
+  version: CredentialVersionRecord;
+  fees: CredentialFeeRecord[];
+  authorities: { name: string; role: AuthorityRole; relationship: "issuer" | "exam_administrator" | "listed_by"; website_url: string | null }[];
 }

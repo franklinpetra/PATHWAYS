@@ -54,7 +54,10 @@ type ProgressEventInsert = Pick<
   "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning"
 >;
 
-type MessageInsert = Pick<StoredMessage, "user_id" | "pathway_id" | "role" | "content" | "status" | "places" | "citations">;
+type MessageInsert = Pick<
+  StoredMessage,
+  "user_id" | "pathway_id" | "role" | "content" | "status" | "places" | "citations" | "unverified_figures"
+>;
 
 type Mutation =
   | { op: "insert_context_item"; row: ContextItemInsert }
@@ -172,6 +175,17 @@ function isVerbatimQuote(quote: string | null, userMessage: string): boolean {
 function clampConfidence(value: number | null | undefined): number | null {
   if (value == null || Number.isNaN(value)) return null;
   return Math.round(Math.min(1, Math.max(0, value)) * 100) / 100;
+}
+
+/**
+ * Platitudes the AI may not draft as Next Steps. Resume steps pass only when tied to a
+ * target ("... resume for the Kroger pharmacy technician role").
+ */
+const GENERIC_STEP =
+  /\b(reach(ing)? out to (your |my )?(network|contacts)|grow (your |my )?network|network(ing)?( more| events?)?$|check (online )?job (boards|sites|listings)|browse job (boards|listings)|search (for )?jobs online|(update|tailor|polish|refresh|improve) (your |my )?(resume|cv|linkedin)(?! (for|to target|to match) ))/i;
+
+export function isGenericStep(title: string): boolean {
+  return GENERIC_STEP.test(title.trim());
 }
 
 const ACTIVITY_SIGNAL =
@@ -399,6 +413,10 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[],
       continue;
     }
     const key = `${p.pathway_id}:${normalizeForMatch(title)}`;
+    if (isGenericStep(title)) {
+      reject("generic advice; a step must name an employer, role, program, credential, registry, office, or form");
+      continue;
+    }
     if (knownTitles.has(key)) {
       reject("duplicates an existing or removed step");
       continue;
@@ -493,6 +511,7 @@ export interface MessageProposal {
   status?: MessageStatus;
   places?: unknown[];
   citations?: unknown[];
+  unverifiedFigures?: string[];
 }
 
 /** Records one message. Only assistant replies may be 'interrupted' or carry places and citations. */
@@ -505,8 +524,14 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
   if (!content) return reject("message is empty");
   if (content.length > MESSAGE_LIMITS[p.role]) return reject("message is too long");
   if (p.pathwayId && !ownsPathway(state, p.pathwayId)) return reject("pathway not found");
-  if (p.role === "user" && (p.status === "interrupted" || (p.places?.length ?? 0) > 0 || (p.citations?.length ?? 0) > 0)) {
-    return reject("user messages are always complete and carry no places or citations");
+  if (
+    p.role === "user" &&
+    (p.status === "interrupted" ||
+      (p.places?.length ?? 0) > 0 ||
+      (p.citations?.length ?? 0) > 0 ||
+      (p.unverifiedFigures?.length ?? 0) > 0)
+  ) {
+    return reject("user messages are always complete and carry no places, citations, or grounding flags");
   }
   return {
     mutations: [
@@ -520,6 +545,7 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
           status: p.status ?? "complete",
           places: p.places ?? [],
           citations: p.citations ?? [],
+          unverified_figures: p.unverifiedFigures ?? [],
         },
       }),
     ],

@@ -4,6 +4,7 @@ import type {
   Action,
   Apprenticeship,
   ContextItem,
+  CredentialMatch,
   Occupation,
   Pathway,
   Place,
@@ -163,6 +164,23 @@ export async function searchTrainingPrograms(params: {
     p_limit: params.limit ?? 8,
   });
   return unwrap<TrainingProgramMatch[]>(res, "training programs");
+}
+
+/** Credential versions in effect on `on` for the occupations, in a jurisdiction (default Washington). */
+export async function searchCredentials(params: {
+  socCodes: string[];
+  jurisdictionCode?: string;
+  on?: string;
+  limit?: number;
+}): Promise<CredentialMatch[]> {
+  if (params.socCodes.length === 0) return [];
+  const res = await db().rpc("search_credentials", {
+    p_soc_codes: params.socCodes,
+    p_jurisdiction_code: params.jurisdictionCode ?? "US-WA",
+    p_on: params.on ?? new Date().toISOString().slice(0, 10),
+    p_limit: params.limit ?? 8,
+  });
+  return unwrap<CredentialMatch[]>(res, "credentials");
 }
 
 export async function searchApprenticeships(params: {

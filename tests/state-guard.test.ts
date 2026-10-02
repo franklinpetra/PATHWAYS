@@ -520,3 +520,26 @@ describe("memory controls", () => {
     expect(restated.mutations).toHaveLength(1);
   });
 });
+
+describe("anti-platitude next steps", () => {
+  it.each([
+    "Reach out to your network",
+    "Check job boards for openings",
+    "Update your resume",
+    "Tailor your resume",
+    "Polish your LinkedIn",
+    "Do more networking",
+  ])("rejects the generic step %j", (title) => {
+    const r = guardStepProposals(state(), [{ pathway_id: PATHWAY, title, why: null, how: null }]);
+    expect(r.mutations).toEqual([]);
+    expect(r.rejections[0].reason).toMatch(/generic advice/);
+  });
+
+  it.each([
+    "Update your resume for the Kroger pharmacy technician role",
+    "Email the Bates Technical College nursing advisor",
+    "Ask the IBEW Local 46 JATC about the next application window",
+  ])("accepts the named step %j", (title) => {
+    expect(guardStepProposals(state(), [{ pathway_id: PATHWAY, title, why: null, how: null }]).mutations).toHaveLength(1);
+  });
+});

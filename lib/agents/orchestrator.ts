@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateStructured, streamChat, type ChatMessage } from "@/lib/ai/openrouter";
 import { applyMutations } from "@/lib/db/mutations";
 import { listLiveContextItems, listMessages, loadGuardState } from "@/lib/db/queries";
-import { WIN_EVENT_TYPES, type Action, type ContextItem, type Pathway, type ReadinessState } from "@/lib/db/types";
+import { WIN_EVENT_TYPES, type Action, type Pathway } from "@/lib/db/types";
 import {
   guardMemoryProposals,
   guardMessage,
@@ -16,11 +16,13 @@ import {
   type UserAction,
   type WinCandidate,
 } from "@/lib/validation/state-guard";
-import { formatAttribution, traceClaims } from "@/lib/workspace/attribution";
+import { traceClaims } from "@/lib/workspace/attribution";
 import type { ChatEvent } from "@/lib/workspace/events";
 import { applyUserActions, loadPanels } from "@/lib/workspace/service";
 import { sanitizeTopics } from "@/lib/workspace/topics";
+import { findUnsupportedFigures } from "./grounding";
 import { proposeContextMutations } from "./memory";
+import { buildSystemPrompt } from "./prompt";
 import { findFacts, type FactFindings } from "./retrieval";
 
 /**
@@ -120,6 +122,16 @@ async function converse(
   const openSteps = pathway ? state.actions.filter((a) => a.pathway_id === pathway.id && isVisibleStep(a, now)) : [];
 
   const prompt = buildSystemPrompt({ contextItems: state.contextItems, pathway, openSteps, findings });
+  // Figures the person supplied may be echoed back; anything else must come from a verified claim.
+  const personText = [
+    message,
+    ...history.filter((m) => m.role === "user").map((m) => m.content),
+    ...state.contextItems.flatMap((i) => [i.display_text, i.user_language ?? ""]),
+  ];
+  const check = (text: string) => ({
+    ...traceClaims(text, findings.claims),
+    unverifiedFigures: findUnsupportedFigures(text, findings.claims, personText),
+  });
   let reply = "";
   try {
     for await (const delta of streamChat(
@@ -132,20 +144,35 @@ async function converse(
   } catch (err) {
     // Keep whatever the person already saw, with the sources it cited.
     if (reply.trim()) {
-      const { citations, places } = traceClaims(reply, findings.claims);
+      const { citations, places, unverifiedFigures } = check(reply);
       await commitQuietly(
         "interrupted reply",
-        guardMessage(state, { role: "assistant", content: reply, pathwayId, status: "interrupted", citations, places }),
+        guardMessage(state, {
+          role: "assistant",
+          content: reply,
+          pathwayId,
+          status: "interrupted",
+          citations,
+          places,
+          unverifiedFigures,
+        }),
       );
     }
     throw err;
   }
 
-  const { citations, places } = traceClaims(reply, findings.claims);
+  const { citations, places, unverifiedFigures } = check(reply);
   if (citations.length > 0) emit({ type: "citations", items: citations });
   if (places.length > 0) emit({ type: "places", items: places });
+  if (unverifiedFigures.length > 0) {
+    console.warn(`[grounding] reply contained unverified figures: ${unverifiedFigures.join(", ")}`);
+    emit({ type: "grounding", unverifiedFigures });
+  }
   if (reply.trim()) {
-    await commitQuietly("reply", guardMessage(state, { role: "assistant", content: reply, pathwayId, places, citations }));
+    await commitQuietly(
+      "reply",
+      guardMessage(state, { role: "assistant", content: reply, pathwayId, places, citations, unverifiedFigures }),
+    );
   }
 
   if (!pathway || !reply.trim()) return [];
@@ -196,87 +223,6 @@ function logRejections(label: string, rejections: Rejection[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt assembly
-// ---------------------------------------------------------------------------
-
-const READINESS_GUIDANCE: Record<ReadinessState, string> = {
-  exploring: "They are exploring. Widen the view, surface options, and help them notice what draws them.",
-  evaluating: "They are evaluating. Help them compare options against what matters to them.",
-  acting: "They are acting. Be concrete and practical about the next move.",
-  returning: "They are returning after time away. Briefly re-orient them before moving forward.",
-};
-
-const BASE_PROMPT = `You are Pathways, a thinking partner for a person exploring education and career pathways in Washington State.
-
-How to respond
-- Be direct and scannable: lead with the answer, then a few short bullets at most. No preamble.
-- Speak to an adult making their own decisions. Never use deficit-based or juvenile language, and don't call them a student unless they do.
-- You organize, compare, draft, and scaffold; the person decides. Offer options, not verdicts.
-- Ask at most one question, and only when it would move things forward.
-- Never mention internal systems, records, or agents, and never say you saved or noted something.
-
-Facts
-- State program, apprenticeship, occupation, deadline, eligibility, cost, completion, wage, or availability details only if they appear under "Verified sources". Put its [n] right after each such detail. The person sees the full source, period, and authority for every [n], so don't repeat them or invent your own citations.
-- If something isn't in Verified sources, say you don't have verified information and suggest who would know, without inventing specifics.
-- Never invent deadlines, eligibility rules, wage figures, or seat counts.
-
-What you know about the person
-- Their latest message always overrides anything recorded below.
-- Items marked "unconfirmed" are earlier inferences. Hold them lightly and never present them as the person's words.`;
-
-function buildSystemPrompt(args: {
-  contextItems: ContextItem[];
-  pathway: Pathway | null;
-  openSteps: Action[];
-  findings: FactFindings;
-}): string {
-  const sections = [BASE_PROMPT];
-
-  if (args.pathway) {
-    const p = args.pathway;
-    sections.push(
-      [
-        `Current pathway: ${p.title}`,
-        READINESS_GUIDANCE[p.readiness_state],
-        p.why_considered ? `Why they are considering it: ${p.why_considered}` : null,
-        p.current_question ? `Their open question: ${p.current_question}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
-  }
-
-  if (args.openSteps.length > 0) {
-    sections.push(
-      `Open next steps:\n${args.openSteps
-        .map((s) => `- ${s.title} (${s.status === "user_selected" ? "they chose this" : "suggested"})`)
-        .join("\n")}`,
-    );
-  }
-
-  const context = args.contextItems.map((item) => {
-    const flags = [
-      item.provenance === "ai_inferred" ? "unconfirmed" : null,
-      item.temporal_status === "stale" ? "may be out of date" : null,
-      item.semantic_status === "confirmed_goal" ? "their confirmed goal" : null,
-      item.semantic_status === "saved_interest" ? "saved interest" : null,
-    ].filter(Boolean);
-    return `- ${item.display_text}${flags.length ? ` (${flags.join("; ")})` : ""}`;
-  });
-  sections.push(`Known context:\n${context.length ? context.join("\n") : "(nothing yet)"}`);
-
-  const sources = args.findings.claims.map(
-    (c, i) => `[${i + 1}] ${c.statement} ${formatAttribution(c.source)}`,
-  );
-  sections.push(`Verified sources:\n${sources.length ? sources.join("\n") : "(none for this message)"}`);
-  if (args.findings.notes.length > 0) {
-    sections.push(`Search notes:\n${args.findings.notes.map((n) => `- ${n}`).join("\n")}`);
-  }
-
-  return sections.join("\n\n");
-}
-
-// ---------------------------------------------------------------------------
 // Candidate Next Steps and Wins
 // ---------------------------------------------------------------------------
 
@@ -302,7 +248,7 @@ const candidatesSchema = z.object({
 
 const CANDIDATES_PROMPT = `You review one exchange between a person and their pathway thinking partner and pull out structured items. You never speak to the person.
 
-next_steps: concrete actions the reply proposed or the person said they intend to take. At most 3. Each must be small, specific, and doable within about two weeks. Skip anything that duplicates an open step. Return none if the exchange did not point to an action.
+next_steps: concrete actions the reply proposed or the person said they intend to take. At most 3. Each must be small, specific, and doable within about two weeks, and must name an employer, role, program, credential, registry, office, or form. Never generic networking, job-board, or resume steps; resume steps only for a named target role and a specific change. Skip anything that duplicates an open step. Return none if the exchange did not point to an action.
 
 wins: only things the person says they have already done that move this pathway forward: submitting an application, talking with someone in the field, contacting a program, attending an event, preparing a document, finishing research, or making a decision. Using this app, logging in, or chatting is never a win. Return none if nothing qualifies.
 
