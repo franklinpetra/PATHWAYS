@@ -46,7 +46,7 @@ $$;
 
 create table users (
   id               uuid primary key default gen_random_uuid(),
-  -- Salted scrypt hash of the access code (see lib/auth/access-code.ts). Never the code itself.
+  -- Keyed hash of the access code (see lib/auth/access-code.ts). Never the code itself.
   access_code_hash text not null,
   username         text not null unique,
   email            text,

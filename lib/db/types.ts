@@ -34,6 +34,36 @@ export type ActionStatus = (typeof ACTION_STATUSES)[number];
 export const ACTORS = ["system", "user"] as const;
 export type Actor = (typeof ACTORS)[number];
 
+/** Kinds of context the Memory Agent may record. */
+export const CONTEXT_ITEM_TYPES = [
+  "goal",
+  "interest",
+  "constraint",
+  "preference",
+  "circumstance",
+  "experience",
+  "strength",
+  "concern",
+  "question",
+] as const;
+export type ContextItemType = (typeof CONTEXT_ITEM_TYPES)[number];
+
+/**
+ * Progress event types that count as a Recent Win. Each is a meaningful step on a
+ * pathway; activity signals (logins, sessions, message counts) are deliberately absent.
+ */
+export const WIN_EVENT_TYPES = [
+  "action_completed",
+  "application_submitted",
+  "conversation_held",
+  "program_contacted",
+  "event_attended",
+  "document_prepared",
+  "research_completed",
+  "decision_made",
+] as const;
+export type WinEventType = (typeof WIN_EVENT_TYPES)[number];
+
 export const EVIDENCE_STATUSES = ["user_reported", "advisor_confirmed", "system_verified"] as const;
 export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
@@ -69,6 +99,7 @@ export interface ContextItem {
   semantic_status: SemanticStatus;
   temporal_status: TemporalStatus;
   confidence: number | null;
+  superseded_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,4 +129,37 @@ export interface ProgressEvent {
   learning: string | null;
   occurred_at: string;
   created_at: string;
+}
+
+export interface Occupation {
+  onet_soc_code: string;
+  title: string;
+  description: string | null;
+  source_authority: string;
+  source_url: string;
+  source_as_of: string;
+}
+
+export interface Place {
+  id: string;
+  name: string;
+  county: string | null;
+  state: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** Row shape returned by the search_programs() SQL function. */
+export interface ProgramMatch {
+  id: string;
+  title: string;
+  provider_name: string;
+  credential_type: string | null;
+  city: string | null;
+  county: string | null;
+  state: string;
+  source_authority: string;
+  source_url: string;
+  source_as_of: string;
+  distance_miles: number | null;
 }
