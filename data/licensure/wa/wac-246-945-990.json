@@ -1,5 +1,5 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "source": {
     "name": "WAC 246-945-990 Pharmaceutical licensing fees and renewal cycle",
     "url": "https://app.leg.wa.gov/wac/default.aspx?cite=246-945-990",
@@ -10,8 +10,8 @@
     "observation_period": null
   },
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2026-10-02",
     "notes": [
       "Check every fee against the official text at the source URL; the loader also re-verifies each excerpt and amount when it runs.",
       "Credential kind is recorded as 'license'. The WAC text calls both 'credentials'; confirm the kind against the Department of Health credential pages before approving.",

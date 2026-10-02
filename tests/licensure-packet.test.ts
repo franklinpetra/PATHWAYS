@@ -17,7 +17,7 @@ function errors(p: unknown): string[] {
   return "errors" in r ? r.errors : [];
 }
 
-describe("the WAC 246-945-990 draft packet", () => {
+describe("the WAC 246-945-990 packet", () => {
   it("is a valid packet", () => {
     expect(errors(draft)).toEqual([]);
   });
@@ -26,8 +26,19 @@ describe("the WAC 246-945-990 draft packet", () => {
     expect(excerptProblems(packet(), wacText)).toEqual([]);
   });
 
-  it("is still a draft awaiting review", () => {
-    expect(reviewProblems(packet(), "2026-10-02")).toHaveLength(3);
+  it("has been reviewed by a named person on a real date", () => {
+    expect(draft.status).toBe("reviewed");
+    expect(draft.review.reviewed_by).toBeTruthy();
+    expect(reviewProblems(packet(), draft.review.reviewed_on)).toEqual([]);
+  });
+
+  it("would be refused if the review were removed", () => {
+    const unreviewed = packet((p) => {
+      p.status = "draft";
+      p.review.reviewed_by = null;
+      p.review.reviewed_on = null;
+    });
+    expect(reviewProblems(unreviewed, "2026-10-02")).toHaveLength(3);
   });
 
   it("keeps fees outside the WAC as unknown, so totals stay unconfirmed", () => {
