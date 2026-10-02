@@ -68,7 +68,7 @@ export function HandoffDialog({ open, onClose, pathwayId, place }: HandoffDialog
         <h2 id="handoff-title" className="font-semibold">
           Continue on your phone
         </h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="-m-1 rounded p-1 text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="btn btn-ghost btn-icon -m-1">
           <X className="size-4" aria-hidden />
         </button>
       </div>
@@ -90,7 +90,7 @@ export function HandoffDialog({ open, onClose, pathwayId, place }: HandoffDialog
           <button
             type="button"
             onClick={() => copy(state.url)}
-            className="mx-auto mt-3 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+            className="btn btn-ghost btn-sm mx-auto mt-3 flex text-forest"
           >
             <Copy className="size-3.5" aria-hidden />
             {copied ? "Copied" : "Copy link instead"}

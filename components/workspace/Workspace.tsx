@@ -146,14 +146,14 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
     <main className="mx-auto w-full max-w-6xl px-gutter pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
       <section aria-label="Conversation" className="flex flex-col lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]">
         <div className="pt-8 pb-6">
-          <p className="text-xs font-medium uppercase tracking-[0.08em] text-primary">{READINESS_LABEL[pathway.readiness_state]}</p>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{pathway.title}</h1>
-          {pathway.current_question && <p className="mt-1.5 text-muted-foreground">{pathway.current_question}</p>}
+          <p className="font-mono text-xs text-forest lowercase">{READINESS_LABEL[pathway.readiness_state]}</p>
+          <h1 className="display-sm mt-2">{pathway.title}</h1>
+          {pathway.current_question && <p className="mt-2 text-lg text-muted-foreground">{pathway.current_question}</p>}
         </div>
 
         <Thread messages={messages} pathwayId={pathway.id} sharedPlace={sharedPlace} pathwayTitle={pathway.title} />
 
-        <div className="sticky bottom-0 -mx-gutter space-y-3 bg-background/95 px-gutter pt-3 pb-4 backdrop-blur lg:static lg:mx-0 lg:px-0">
+        <div className="sticky bottom-0 -mx-gutter space-y-3 bg-background px-gutter pt-3 pb-4 lg:static lg:mx-0 lg:px-0">
           <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
           <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
         </div>
@@ -161,7 +161,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
 
       <aside aria-label="Your progress" className="mt-6 space-y-5 lg:mt-8 lg:pb-8">
         {notice && (
-          <p role="status" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+          <p role="status" className="notice">
             {notice}
           </p>
         )}
@@ -224,7 +224,7 @@ function Thread({
       {messages.map((m) =>
         m.role === "user" ? (
           <div key={m.id} className="flex justify-end">
-            <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-[15px] leading-relaxed text-background">
+            <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-foreground px-4 py-2.5 text-[15px] leading-relaxed text-background">
               {m.content}
             </p>
           </div>
@@ -269,7 +269,7 @@ function AssistantMessage({ message: m, pathwayId }: { message: Message; pathway
       )}
       {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
       {(m.unverifiedFigures?.length ?? 0) > 0 && (
-        <p role="note" className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+        <p role="note" className="notice mt-3 border-dashed text-xs">
           Not verified: {m.unverifiedFigures!.join(", ")} didn&apos;t match any source Pathways checked. Treat{" "}
           {m.unverifiedFigures!.length === 1 ? "it" : "them"} as unconfirmed.
         </p>

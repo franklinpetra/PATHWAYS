@@ -2,34 +2,66 @@
 
 /*
  * PATHWAYS design tokens.
- * Mobile-first, sparse, elegant. Each token generates utilities
- * (e.g. bg-background, text-foreground, border-border, text-primary, p-gutter).
+ * Minimal and calm: bone background, crisp charcoal type, and two greens taken from the
+ * logo, used sparingly. Each token generates utilities (bg-background, text-forest, ...).
+ *
+ * Contrast on the bone background (WCAG):
+ *   foreground #16171A  16.7:1    muted-foreground #56595F  6.6:1
+ *   forest     #1B6040   7.0:1    white on forest           7.5:1
+ *   leaf       #6BBA16   2.3:1    -> decorative only (logo, halos, tints); never text or a lone indicator
  */
 @theme {
-  /* Palette */
-  --color-background: #fbfbf9; /* warm off-white */
-  --color-foreground: #1c1d1f; /* charcoal */
-  --color-primary: #4a6b5d; /* restrained sage */
-  --color-primary-foreground: #fbfbf9;
-  --color-border: #e5e7eb; /* thin neutral */
-  --color-muted-foreground: #5f6368; /* secondary text, AA on background */
-  --color-surface: #ffffff; /* cards resting on the background */
+  /* Neutrals */
+  --color-background: #f7f7f5; /* bone */
+  --color-foreground: #16171a; /* charcoal */
+  --color-muted-foreground: #56595f;
+  --color-surface: #fcfcfa; /* cards and fields: a shade lighter than the background */
+  --color-subtle: #efefec; /* flat hover fill */
+  --color-border: #e3e3df;
+  --color-border-strong: #cdcdc7;
+
+  /* Brand greens, sampled from the logo */
+  --color-leaf: #6bba16;
+  --color-forest: #1b6040;
+  --color-forest-deep: #144a31; /* pressed / hover on forest */
+  --color-leaf-tint: #eef5e4; /* active-state fill; charcoal and forest text both read clearly on it */
+
+  /* Semantic roles */
+  --color-primary: var(--color-forest);
+  --color-primary-hover: var(--color-forest-deep);
+  --color-primary-foreground: #ffffff;
 
   /* Typography */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Small metadata only: badges, dates, counts. */
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Generous spacing */
   --spacing-gutter: 1.5rem;
   --spacing-section: 3rem;
 
-  /* Minimal shadows: replace Tailwind's defaults with near-flat elevation */
+  /* Flat: near-invisible elevation only */
   --shadow-*: initial;
-  --shadow-xs: 0 1px 1px 0 rgb(28 29 31 / 0.03);
-  --shadow-sm: 0 1px 2px 0 rgb(28 29 31 / 0.04);
-  --shadow-md: 0 2px 6px -1px rgb(28 29 31 / 0.05);
+  --shadow-xs: 0 1px 1px 0 rgb(22 23 26 / 0.03);
+  --shadow-sm: 0 1px 2px 0 rgb(22 23 26 / 0.04);
+  --shadow-md: 0 2px 6px -1px rgb(22 23 26 / 0.05);
 
-  /* Soft, restrained corners */
-  --radius-card: 0.875rem;
+  /* Soft corners for cards; controls are pills */
+  --radius-card: 1.25rem;
+
+  /* Logo entrance */
+  --animate-logo-enter: logo-enter 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes logo-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 @layer base {
@@ -53,11 +85,82 @@
   }
 
   ::selection {
-    background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+    background-color: color-mix(in srgb, var(--color-leaf) 30%, transparent);
   }
 
+  /* Forest ring carries the contrast; the leaf halo is the brand accent. */
   :focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-forest);
     outline-offset: 2px;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-leaf) 28%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+/*
+ * Shared controls. Pills with subtle borders and flat fills; greens only on primary
+ * actions and active states.
+ */
+@layer components {
+  .btn {
+    @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-sm {
+    @apply px-3 py-1 text-xs;
+  }
+  .btn-icon {
+    @apply size-8 p-0;
+  }
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary-hover disabled:bg-subtle disabled:text-muted-foreground disabled:opacity-100 disabled:hover:bg-subtle;
+  }
+  .btn-secondary {
+    @apply border border-border bg-surface text-foreground hover:border-border-strong hover:bg-subtle;
+  }
+  .btn-ghost {
+    @apply text-muted-foreground hover:bg-subtle hover:text-foreground;
+  }
+  /* Active / selected state: leaf tint with forest text. */
+  .btn-active {
+    @apply border border-forest/25 bg-leaf-tint text-forest hover:bg-leaf-tint;
+  }
+  .btn-danger {
+    @apply bg-foreground text-background hover:bg-foreground/85;
+  }
+
+  .field {
+    @apply w-full rounded-full border border-border bg-surface px-4 py-2.5 text-foreground transition-colors placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-forest focus:outline-none;
+  }
+  .field-sm {
+    @apply px-3 py-1 text-sm;
+  }
+  /* Multi-line fields can't be true pills; keep them soft. */
+  .field-multiline {
+    @apply rounded-2xl;
+  }
+
+  .notice {
+    @apply rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-muted-foreground;
+  }
+
+  /* A soft pill for small status labels, set in mono like other metadata. */
+  .badge {
+    @apply inline-flex items-center rounded-full border border-border px-2 py-px font-mono text-[11px] lowercase;
+  }
+
+  /* Editorial headlines: large, tight, and balanced. */
+  .display {
+    @apply text-[2.5rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance sm:text-[3.5rem];
+  }
+  .display-sm {
+    @apply text-[1.875rem] leading-[1.1] font-semibold tracking-[-0.03em] text-balance sm:text-[2.25rem];
   }
 }

@@ -27,7 +27,7 @@ function renderInline(text: string, cite: CiteProps): ReactNode[] {
             type="button"
             onClick={() => cite.onCite!(index)}
             aria-label={`Show source ${index}`}
-            className="ml-0.5 rounded align-super text-[0.7em] font-medium text-primary hover:underline"
+            className="ml-0.5 rounded-full align-super text-[0.7em] font-medium text-forest hover:underline"
           >
             {part}
           </button>
@@ -41,7 +41,7 @@ function renderInline(text: string, cite: CiteProps): ReactNode[] {
     }
     if (/^https?:\/\//.test(part))
       return (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-primary underline underline-offset-2">
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-forest underline underline-offset-2">
           {part.replace(/^https?:\/\/(www\.)?/, "")}
         </a>
       );
@@ -93,7 +93,7 @@ export function MessageText({ text, citable, onCite }: { text: string } & CitePr
           case "ol": {
             const List = block.kind;
             return (
-              <List key={i} className={`space-y-1.5 pl-5 ${block.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-primary/60`}>
+              <List key={i} className={`space-y-1.5 pl-5 ${block.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-forest/60`}>
                 {block.lines.map((line, j) => (
                   <li key={j}>{renderInline(line, cite)}</li>
                 ))}

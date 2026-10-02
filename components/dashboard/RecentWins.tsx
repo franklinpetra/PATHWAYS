@@ -26,8 +26,8 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
   return (
     <Card title="Recent wins" id="recent-wins-heading">
       {candidates.length > 0 && (
-        <div className="mb-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
-          <p className="text-xs font-medium text-primary">Sounds like progress. Add it?</p>
+        <div className="mb-4 rounded-2xl border border-dashed border-forest/30 bg-leaf-tint p-3">
+          <p className="text-xs font-medium text-forest">Sounds like progress. Add it?</p>
           <ul className="mt-2 space-y-2">
             {candidates.map((c) => (
               <li key={`${c.event_type}:${c.title}`} className="text-sm">
@@ -45,14 +45,14 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
                       ]);
                       onDismissCandidate(c);
                     }}
-                    className="rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground disabled:opacity-50"
+                    className="btn btn-primary btn-sm"
                   >
                     Add to wins
                   </button>
                   <button
                     type="button"
                     onClick={() => onDismissCandidate(c)}
-                    className="rounded-md px-2 py-1 text-muted-foreground hover:text-foreground"
+                    className="btn btn-ghost btn-sm"
                   >
                     Not this one
                   </button>
@@ -108,7 +108,7 @@ function WinItem({ win, busy, onAction }: { win: ProgressEvent; busy: boolean; o
               value={title}
               maxLength={120}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+              className="field field-sm"
             />
           </label>
           <label className="block">
@@ -118,18 +118,18 @@ function WinItem({ win, busy, onAction }: { win: ProgressEvent; busy: boolean; o
               maxLength={600}
               rows={2}
               onChange={(e) => setLearning(e.target.value)}
-              className="mt-1 w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+              className="field field-sm field-multiline mt-1 resize-none"
             />
           </label>
           <div className="flex gap-1 text-xs">
             <button
               type="submit"
               disabled={busy || !title.trim()}
-              className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground disabled:opacity-50"
+              className="btn btn-primary btn-sm"
             >
               Save
             </button>
-            <button type="button" onClick={cancel} className="rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground">
+            <button type="button" onClick={cancel} className="btn btn-ghost btn-sm">
               Cancel
             </button>
           </div>
@@ -146,9 +146,7 @@ function WinItem({ win, busy, onAction }: { win: ProgressEvent; busy: boolean; o
         <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <time dateTime={win.occurred_at}>{formatDay(win.occurred_at)}</time>
           <span
-            className={`rounded-full border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide ${
-              win.evidence_status === "user_reported" ? "border-border" : "border-primary/30 text-primary"
-            }`}
+            className={`badge ${win.evidence_status === "user_reported" ? "" : "border-forest/30 bg-leaf-tint text-forest"}`}
           >
             {EVIDENCE_LABEL[win.evidence_status]}
           </span>
@@ -158,7 +156,7 @@ function WinItem({ win, busy, onAction }: { win: ProgressEvent; busy: boolean; o
         type="button"
         onClick={() => setEditing(true)}
         aria-label={`Rephrase: ${win.title}`}
-        className="rounded-md p-1 text-muted-foreground opacity-60 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+        className="btn btn-ghost btn-icon size-7 opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
       >
         <Pencil className="size-3.5" aria-hidden />
       </button>

@@ -17,9 +17,9 @@ export default async function MemoryPage() {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-2xl px-gutter py-10">
-        <p className="text-xs font-medium uppercase tracking-[0.08em] text-primary">My story</p>
-        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">What Pathways remembers</h1>
-        <p className="mt-3 text-muted-foreground">
+        <p className="font-mono text-xs text-forest lowercase">My story</p>
+        <h1 className="display-sm mt-2">What Pathways remembers</h1>
+        <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
           This is everything Pathways has taken from your conversations, and it shapes every reply. Keep what&apos;s
           right, edit anything into your own words, and delete what you don&apos;t want used.
         </p>

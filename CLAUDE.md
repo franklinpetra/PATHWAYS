@@ -12,7 +12,9 @@
 
 ## Visual Language
 - Mobile-first, sparse, elegant[cite: 3, 4].
-- Palette: Warm off-white background (`#FBFBF9`), charcoal type (`#1C1D1F`), restrained sage accent (`#4A6B5D`), thin borders (`#E5E7EB`), generous whitespace[cite: 4].
+- Palette: Bone background (`#F7F7F5`), charcoal type (`#16171A`), subtle borders (`#E3E3DF`), generous whitespace. Brand greens from the logo, used sparingly: forest (`#1B6040`) for primary actions, active text, and focus rings; leaf (`#6BBA16`) only for decoration (logo, halos, tints), since it is too light for text on bone. Tokens live in `app/globals.css`.
+- Controls: pill-shaped buttons and inputs with subtle borders and flat fills, via the shared `btn`, `field`, `notice`, and `badge` classes.
+- Logo: `components/brand/Logo.tsx` (mark image + forest wordmark), with a CSS fade-and-glide entrance on first load only.
 - No gamified progress bars or thermometers[cite: 4]. The workspace centers on Chat reflection, flanked by compact "Recent Wins" and "Next Steps" cards[cite: 4].
 
 ## Tech Stack

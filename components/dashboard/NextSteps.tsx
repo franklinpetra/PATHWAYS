@@ -92,21 +92,21 @@ function StepItem({
           disabled={disabled}
           onClick={() => onAction({ type: "complete_step", actionId: step.id })}
           aria-label={`Mark done: ${step.title}`}
-          className="group mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-primary/50 transition-colors hover:bg-primary/10 disabled:opacity-50"
+          className="group mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-forest/50 transition-colors hover:border-forest hover:bg-leaf-tint disabled:opacity-50"
         >
-          <Check className="size-3 text-primary opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+          <Check className="size-3 text-forest opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
         </button>
 
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug">{step.title}</p>
           {step.status === "suggested" && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Suggested ·{" "}
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="badge text-muted-foreground">Suggested</span>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onAction({ type: "adopt_step", actionId: step.id })}
-                className="font-medium text-primary underline-offset-2 hover:underline"
+                className="btn btn-active btn-sm"
               >
                 Take this on
               </button>
@@ -121,7 +121,7 @@ function StepItem({
           )}
           {step.how && (
             <details className="mt-1.5 text-sm">
-              <summary className="cursor-pointer font-medium text-primary marker:text-primary/60">How</summary>
+              <summary className="cursor-pointer font-medium text-forest marker:text-forest/60">How</summary>
               <p className="mt-1 text-muted-foreground">{step.how}</p>
             </details>
           )}
@@ -137,7 +137,7 @@ function StepItem({
               disabled={disabled}
               // Partially typed dates report "" mid-entry; clearing is only via the button below.
               onChange={(e) => e.target.value && onAction({ type: "set_step_due", actionId: step.id, dueDate: e.target.value })}
-              className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-sm text-muted-foreground"
+              className="field field-sm w-auto text-muted-foreground"
               aria-describedby={dueDate ? undefined : `${dueId}-none`}
             />
             {dueDate ? (
@@ -146,7 +146,7 @@ function StepItem({
                 disabled={disabled}
                 onClick={() => onAction({ type: "set_step_due", actionId: step.id, dueDate: null })}
                 aria-label={`Clear due date ${formatIsoDate(dueDate)}`}
-                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                className="btn btn-ghost btn-icon size-6"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
@@ -206,7 +206,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-30"
+      className="btn btn-ghost btn-icon"
     >
       {children}
     </button>
@@ -227,7 +227,7 @@ function TextButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-50"
+      className="btn btn-ghost btn-sm"
     >
       {children}
     </button>

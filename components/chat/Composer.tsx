@@ -38,7 +38,7 @@ export function Composer({ streaming, onSend, onStop }: ComposerProps) {
   return (
     <form
       onSubmit={submit}
-      className="flex items-end gap-2 rounded-2xl border border-border bg-surface p-2 shadow-sm focus-within:border-primary/50"
+      className="flex items-end gap-2 rounded-[2rem] border border-border bg-surface p-2.5 pl-4 transition-[border-color,box-shadow] focus-within:border-forest focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-leaf)_28%,transparent)]"
     >
       <label htmlFor="composer" className="sr-only">
         Message
@@ -52,14 +52,14 @@ export function Composer({ streaming, onSend, onStop }: ComposerProps) {
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Think out loud…"
-        className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground/70"
+        className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-2 text-base leading-relaxed outline-none placeholder:text-muted-foreground/70 focus-visible:shadow-none focus-visible:outline-none"
       />
       {streaming ? (
         <button
           type="button"
           onClick={onStop}
           aria-label="Stop"
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border text-foreground hover:bg-background"
+          className="btn btn-secondary btn-icon size-10"
         >
           <Square className="size-3.5 fill-current" aria-hidden />
         </button>
@@ -68,7 +68,7 @@ export function Composer({ streaming, onSend, onStop }: ComposerProps) {
           type="submit"
           disabled={!text.trim()}
           aria-label="Send"
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+          className="btn btn-primary btn-icon size-10"
         >
           <ArrowUp className="size-4" aria-hidden />
         </button>

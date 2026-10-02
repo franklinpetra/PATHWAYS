@@ -85,13 +85,13 @@ export function MemoryList({ initialItems }: { initialItems: ContextItem[] }) {
   return (
     <div className="mt-8 space-y-8">
       {notice && (
-        <p role="status" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+        <p role="status" className="notice">
           {notice}
         </p>
       )}
 
       {live.length === 0 && (
-        <p className="rounded-card border border-border bg-surface p-5 text-muted-foreground">
+        <p className="notice rounded-card p-5 text-base">
           Nothing yet. As you talk things through, what you share will appear here for you to review.
         </p>
       )}
@@ -162,13 +162,13 @@ function MemoryItem({ item, busy, onAction }: { item: ContextItem; busy: boolean
             maxLength={280}
             rows={2}
             onChange={(e) => setText(e.target.value)}
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2"
+            className="field field-multiline resize-none"
           />
           <div className="flex gap-1 text-sm">
             <button
               type="submit"
               disabled={busy || !text.trim()}
-              className="rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-50"
+              className="btn btn-primary btn-sm"
             >
               Save
             </button>
@@ -178,7 +178,7 @@ function MemoryItem({ item, busy, onAction }: { item: ContextItem; busy: boolean
                 setText(item.display_text);
                 setMode("view");
               }}
-              className="rounded-md px-3 py-1 text-muted-foreground hover:text-foreground"
+              className="btn btn-ghost btn-sm"
             >
               Cancel
             </button>
@@ -195,7 +195,7 @@ function MemoryItem({ item, busy, onAction }: { item: ContextItem; busy: boolean
       <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <span
           className={`rounded-full border px-1.5 py-px font-medium ${
-            unconfirmed ? "border-dashed border-primary/50 text-primary" : "border-border"
+            unconfirmed ? "border-dashed border-forest/40 bg-leaf-tint text-forest" : "border-border"
           }`}
         >
           {PROVENANCE_LABEL[item.provenance]}
@@ -214,11 +214,11 @@ function MemoryItem({ item, busy, onAction }: { item: ContextItem; busy: boolean
             type="button"
             disabled={busy}
             onClick={() => onAction({ type: "archive_context_item", contextItemId: item.id })}
-            className="rounded-md bg-foreground px-2.5 py-1 font-medium text-background disabled:opacity-50"
+            className="btn btn-danger btn-sm"
           >
             Delete
           </button>
-          <button type="button" onClick={() => setMode("view")} className="rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={() => setMode("view")} className="btn btn-ghost btn-sm">
             Cancel
           </button>
         </div>
@@ -266,11 +266,7 @@ function ItemButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 transition-colors disabled:opacity-50 ${
-        emphasized
-          ? "border-primary/40 text-primary hover:bg-primary/5"
-          : "border-border text-muted-foreground hover:text-foreground"
-      }`}
+      className={`btn btn-sm text-sm ${emphasized ? "btn-active" : "btn-secondary text-muted-foreground hover:text-foreground"}`}
     >
       {children}
     </button>

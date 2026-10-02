@@ -85,9 +85,9 @@ export function PlaceActions({ place, pathwayId, allowHandoff = true }: { place:
   }
 
   return (
-    <div className="rounded-lg border border-border bg-background/60 px-3 py-2">
+    <div className="rounded-2xl border border-border bg-surface px-3 py-2.5">
       <p className="flex items-start gap-1.5 text-xs">
-        <MapPin className="mt-px size-3.5 shrink-0 text-primary" aria-hidden />
+        <MapPin className="mt-px size-3.5 shrink-0 text-forest" aria-hidden />
         <span className="min-w-0">
           {place.label && <span className="font-medium">{place.label} · </span>}
           <span className="text-muted-foreground">{place.query}</span>
@@ -148,8 +148,7 @@ function CalendarButton({ date, location, showDate }: { date: DetectedDate; loca
   );
 }
 
-const TOOLBAR_ITEM =
-  "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary";
+const TOOLBAR_ITEM = "btn btn-secondary btn-sm";
 
 function ToolbarLink({ href, icon, children }: { href: string; icon: ReactNode; children: ReactNode }) {
   const external = href.startsWith("http");

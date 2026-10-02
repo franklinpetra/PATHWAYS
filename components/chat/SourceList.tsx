@@ -37,11 +37,11 @@ export function SourceList({
                 const isOpen = (e.currentTarget as HTMLDetailsElement).open;
                 if (isOpen !== open.has(c.index)) onToggle(c.index, isOpen);
               }}
-              className="group scroll-mt-24 rounded-lg border border-transparent text-sm open:border-border open:bg-surface"
+              className="group scroll-mt-24 rounded-2xl border border-transparent text-sm open:border-border open:bg-surface"
             >
-              <summary className="flex cursor-pointer list-none items-baseline gap-2 rounded-lg px-2 py-1 hover:bg-surface [&::-webkit-details-marker]:hidden">
-                <span className="text-xs font-medium text-primary">[{c.index}]</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              <summary className="flex cursor-pointer list-none items-baseline gap-2 rounded-full px-3 py-1 hover:bg-subtle [&::-webkit-details-marker]:hidden">
+                <span className="text-xs font-medium text-forest">[{c.index}]</span>
+                <span className="line-clamp-2 min-w-0 flex-1 text-muted-foreground">
                   <span className="font-medium text-foreground">{c.source.name}</span>
                   <span aria-hidden> · </span>
                   {attributionWhen(c.source)}
@@ -49,7 +49,7 @@ export function SourceList({
                 <span className="text-xs text-muted-foreground group-open:hidden">Details</span>
                 <span className="hidden text-xs text-muted-foreground group-open:inline">Hide</span>
               </summary>
-              <div className="space-y-2 px-2 pt-1 pb-3">
+              <div className="space-y-2 px-3 pt-1 pb-3">
                 <p>{c.statement}</p>
                 <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs">
                   <dt className="text-muted-foreground">Source</dt>
@@ -64,7 +64,7 @@ export function SourceList({
                   href={c.source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  className="btn btn-secondary btn-sm"
                 >
                   View source
                   <ExternalLink className="size-3" aria-hidden />
