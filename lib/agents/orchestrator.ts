@@ -115,7 +115,7 @@ async function converse(
     findings = facts.value;
   } else {
     console.error("[orchestrator] fact-finder failed", facts.reason);
-    findings = { params: null, claims: [], notes: ["Source lookup was unavailable for this message."] };
+    findings = { params: null, claims: [], notes: ["No Tier 1 sources for this message. Answer from Tier 2 knowledge and mark figures to confirm."] };
   }
 
   const now = new Date();

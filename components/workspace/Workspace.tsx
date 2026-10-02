@@ -142,6 +142,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
     }
   }
 
+  const empty = messages.length === 0 && !sharedPlace;
+
   return (
     <main className="mx-auto w-full max-w-6xl px-gutter pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
       <section aria-label="Conversation" className="flex flex-col lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]">
@@ -151,11 +153,20 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
           {pathway.current_question && <p className="mt-2 text-lg text-muted-foreground">{pathway.current_question}</p>}
         </div>
 
-        <Thread messages={messages} pathwayId={pathway.id} sharedPlace={sharedPlace} pathwayTitle={pathway.title} />
+        {/* An empty conversation centers the prompt and composer; once it starts, the composer docks below. */}
+        <div className={empty ? "space-y-6 lg:my-auto lg:pb-24" : "contents"}>
+          <Thread messages={messages} pathwayId={pathway.id} sharedPlace={sharedPlace} pathwayTitle={pathway.title} />
 
-        <div className="sticky bottom-0 -mx-gutter space-y-3 bg-background px-gutter pt-3 pb-4 lg:static lg:mx-0 lg:px-0">
-          <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
-          <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
+          <div
+            className={
+              empty
+                ? "space-y-3"
+                : "sticky bottom-0 -mx-gutter space-y-3 bg-background px-gutter pt-3 pb-4 lg:static lg:mx-0 lg:px-0"
+            }
+          >
+            <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
+            <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
+          </div>
         </div>
       </section>
 
@@ -207,7 +218,7 @@ function Thread({
   }, [messages.length, last?.content, last?.role]);
 
   return (
-    <div className="flex-1 space-y-6 lg:overflow-y-auto lg:pr-2" aria-busy={last?.status === "streaming"}>
+    <div className={messages.length || sharedPlace ? "flex-1 space-y-6 lg:overflow-y-auto lg:pr-2" : ""} aria-busy={last?.status === "streaming"}>
       {sharedPlace && (
         <div>
           <p className="mb-2 text-xs text-muted-foreground">Sent from your other device</p>

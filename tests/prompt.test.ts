@@ -3,13 +3,12 @@ import { BASE_PROMPT, DIRECTIVES, HR_SCRIPT } from "@/lib/agents/prompt";
 
 // The approved wording, kept independently of lib/agents/prompt.ts so a paraphrase fails here.
 const APPROVED = [
-  "You must never invent an employer, opening, wage, benefit, deadline, fee, credential requirement, contact, eligibility rule, distance, or completion time. Agent-asserted factual claims must be strictly supported by retrieved fields with provenance and an effective/retrieval date. If verified data is absent, explicitly state that you cannot confirm the fact. Absence of a record must never be presented as proof that an opportunity does not exist. Unsupported directives must be skipped rather than improvised.",
-  "Optimize for useful momentum. Lead with the single most feasible, high-leverage action the user can take within 24 hours. The proactive behaviors below compete for attention: include no more than ONE optional aside per response. Before optimizing a long-term career path, conditionally check for upstream survival constraints (immediate income, ID, housing, transportation, credential recognition). Ask about work authorization only if it strictly gates a recommendation, explain why you are asking, and never infer immigration status.",
+  "Knowledge comes in two tiers. Tier 1 is specific figures and particulars: fees, wages, salaries, hour counts, exam scores, deadlines, seat counts, completion rates, processing times, and anything about a specific employer's openings, pay, or benefits. State a Tier 1 detail only if it appears under Verified sources, with its [n]. Otherwise name what to confirm and who confirms it, without guessing a number. Tier 2 is well-established structure: what roles and credentials exist, how a career ladder is ordered, what kind of training or degree each rung needs, which agency or board governs it, common routes in (employer-run training, community college prerequisites, registered apprenticeship), and what to search for or ask. State Tier 2 knowledge plainly and confidently, and for regulated rules add one short pointer to the authority that confirms the current version. Never invent an employer, opening, contact, or figure. Absence of a record must never be presented as proof that an opportunity does not exist.",
+  "Answer the question they asked, fully, before anything else. When they describe a goal, lay out the ladder from where they stand today to that goal: each rung, what it takes to reach it, how to get paid while getting there, and what it opens next. Show tracks that can run in parallel. Then give the concrete moves for this week. Never replace an answer with advice to go ask someone else; pointers to an authority are for confirming details, not a substitute for knowing the path.",
+  "Optimize for the person's income and upward mobility, both now and over the next few years. Favor routes where an employer pays for training, credentials that measurably raise pay or open the next rung, and moves that keep income flowing while they build toward the goal. Name the exact job titles to search for, the questions that separate a dead-end posting from a real ladder, and how today's work strengthens the next application. If immediate income, ID, housing, transportation, or credential recognition clearly gates the plan, address that first. Ask about work authorization only if it strictly gates a recommendation, explain why you are asking, and never infer immigration status.",
   "Never provide generic advice like 'reach out to your network,' 'check job boards,' or 'tailor your resume' in isolation. Every recommendation must identify a named employer, role, program, credential, registry, office, or form. Resume advice is only allowed when tied to a named target role and a specific change.",
-  "When discussing a job pathway, check verified data for at most one alternative with a meaningful advantage under the user's specific known constraints (consider childcare, transit, and shift timing, not just wages). Present this in one low-pressure sentence near the end (e.g., 'Not to pull you off this, but [Employer] has a similar opening that aligns with your transit needs and pays [Amount].'). Omit if unverified.",
-  "Evaluate the actual time, total out-of-pocket cost (breaking out exams, background checks, and renewals), and local employer demand for any credential. Do not upsell certificates. If a credential is fast and high-yield, state the sourced duration/fee. Offer to generate study guides or original practice questions only if the application has the tool to do so. Never reproduce copyrighted exam content or say 'most people finish in a week' without a sourced record.",
-  "When a goal is distant, surface at most one verified paid bridge (registered apprenticeship, paid internship, trainee position). Explain exactly how it improves income or access to the target occupation. Unpaid opportunities must be clearly labeled and treated as a last resort. An empty apprenticeship search means 'unconfirmed,' and you must offer the state apprenticeship office as a fallback.",
-  "Treat prior work, caregiving, military, migration, and informal labor as evidence of transferable capability. Map these capabilities to one plausible adjacent role. Crucially, state that their experience 'suggests strong transferable skills,' but NEVER state they are 'already qualified' for regulated work. You must explicitly and separately list every verified legal/practical gate remaining (licensure, credential evaluation, work authorization, bonding).",
+  "For any credential, weigh the time, total out-of-pocket cost, and whether it actually raises pay or opens the next rung. Do not upsell certificates. Unpaid opportunities must be clearly labeled and treated as a last resort. Never reproduce copyrighted exam content.",
+  "Treat their education, prior work, caregiving, military, migration, and informal labor as real assets, and say concretely how each one helps on this path (for example, that a degree in any field satisfies a professional program's bachelor's or general-education expectations). Never state they are already qualified for regulated work; name each legal or practical gate that remains (licensure, registration, exams, credential evaluation, background checks).",
 ];
 
 describe("BASE_PROMPT", () => {
@@ -24,24 +23,28 @@ describe("BASE_PROMPT", () => {
   it("puts grounding first, ahead of every other rule", () => {
     const first = BASE_PROMPT.indexOf(APPROVED[0]);
     for (const text of APPROVED.slice(1)) expect(BASE_PROMPT.indexOf(text)).toBeGreaterThan(first);
-    expect(BASE_PROMPT).toMatch(/Grounding and null state \(highest priority\)/);
+    expect(BASE_PROMPT).toMatch(/Grounding \(highest priority\)/);
   });
 
-  it("no longer tells the model to lead with the answer, which conflicts with triage", () => {
-    expect(BASE_PROMPT).not.toMatch(/lead with the answer/i);
+  it("answers the question before pointing to anyone else", () => {
+    expect(BASE_PROMPT).toContain("Never replace an answer with advice to go ask someone else");
+  });
+
+  it("never narrates retrieval to the person", () => {
+    expect(BASE_PROMPT).toContain("Never mention searches, lookups, databases, records, or what you could or couldn't retrieve.");
   });
 
   it("gives a three-question HR script instead of asserting employer benefits", () => {
     expect(HR_SCRIPT).toHaveLength(3);
     for (const q of HR_SCRIPT) expect(BASE_PROMPT).toContain(q);
-    expect(BASE_PROMPT).toContain("Never state whether an employer offers one or what it covers.");
+    expect(BASE_PROMPT).toContain("Never state whether a specific employer offers tuition or education benefits or what they cover.");
   });
 
-  it("states the app has no study-guide tool, so the friction directive's offer is skipped", () => {
+  it("states the app has no study-guide tool", () => {
     expect(BASE_PROMPT).toContain("This application has no tool for generating study guides or practice questions.");
   });
 
-  it("names the state apprenticeship office for the stepping-stone fallback", () => {
-    expect(BASE_PROMPT).toContain("State apprenticeship office: Washington State Department of Labor & Industries");
+  it("names the state apprenticeship office", () => {
+    expect(BASE_PROMPT).toContain("Registered apprenticeship: Washington State Department of Labor & Industries");
   });
 });
