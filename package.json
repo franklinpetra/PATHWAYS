@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "seed:wa": "tsx scripts/seed-washington.ts"
+    "seed:wa": "tsx scripts/seed-washington.ts",
+    "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
