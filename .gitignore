@@ -8,3 +8,6 @@ next-env.d.ts
 .DS_Store
 .vercel
 supabase/.temp/
+
+# Generated access-code lists: live credentials, never commit
+test-access-codes*.csv

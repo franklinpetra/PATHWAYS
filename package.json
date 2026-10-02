@@ -11,7 +11,8 @@
     "seed:wa": "tsx scripts/seed-washington.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
     "load:licensure": "tsx scripts/load-licensure.ts",
-    "reset-user": "tsx scripts/reset-user.ts"
+    "reset-user": "tsx scripts/reset-user.ts",
+    "generate-test-accounts": "NODE_OPTIONS=--conditions=react-server tsx scripts/generate-test-accounts.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

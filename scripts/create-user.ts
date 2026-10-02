@@ -7,28 +7,15 @@
  * Codes use an unambiguous alphabet (no 0/O, 1/I/L) and are grouped for reading; sign-in ignores
  * spaces and case.
  */
-import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { hashAccessCode } from "../lib/auth/access-code";
-
-const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const CODE_LENGTH = 12;
+import { formatAccessCode, generateAccessCode } from "../lib/auth/codes";
 
 function fail(message: string): never {
   console.error(`\n${message}\n`);
   process.exit(1);
-}
-
-function generateCode(): string {
-  let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) code += ALPHABET[randomInt(ALPHABET.length)];
-  return code;
-}
-
-function display(code: string): string {
-  return code.match(/.{1,4}/g)!.join(" ");
 }
 
 const { values } = parseArgs({
@@ -58,7 +45,7 @@ async function main() {
   let code = "";
   let userId = "";
   for (let attempt = 0; attempt < 3 && !userId; attempt++) {
-    code = generateCode();
+    code = generateAccessCode();
     const { data, error } = await db
       .from("users")
       .insert({ username, email: values.email ?? null, access_code_hash: hashAccessCode(code) })
@@ -81,7 +68,7 @@ async function main() {
   }
 
   console.log(`\nCreated ${username}.`);
-  console.log(`  Access code: ${display(code)}   (shown once; store it somewhere safe)`);
+  console.log(`  Access code: ${formatAccessCode(code)}   (shown once; store it somewhere safe)`);
   if (pathwayId) console.log(`  Pathway: /pathways/${pathwayId}`);
 }
 
