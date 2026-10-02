@@ -1,0 +1,239 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Composer } from "@/components/chat/Composer";
+import { MessageText } from "@/components/chat/MessageText";
+import { MessageToolbar, PlaceActions } from "@/components/chat/PlaceToolbar";
+import { SuggestedTopics } from "@/components/chat/SuggestedTopics";
+import { NextSteps } from "@/components/dashboard/NextSteps";
+import { RecentWins } from "@/components/dashboard/RecentWins";
+import { postWorkspaceActions, streamChatTurn } from "@/lib/client/api";
+import type { Action, Pathway, ProgressEvent } from "@/lib/db/types";
+import type { UserAction, WinCandidate } from "@/lib/validation/state-guard";
+import type { VerifiedPlace } from "@/lib/workspace/events";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "streaming" | "done" | "error";
+  places?: VerifiedPlace[];
+}
+
+interface WorkspaceProps {
+  pathway: Pathway;
+  initialSteps: Action[];
+  initialWins: ProgressEvent[];
+  initialTopics: string[];
+  /** A place sent from another device via the handoff link. */
+  sharedPlace: { query: string; label: string | null } | null;
+}
+
+const READINESS_LABEL: Record<Pathway["readiness_state"], string> = {
+  exploring: "Exploring",
+  evaluating: "Evaluating",
+  acting: "Acting",
+  returning: "Returning",
+};
+
+export function Workspace({ pathway, initialSteps, initialWins, initialTopics, sharedPlace }: WorkspaceProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [topics, setTopics] = useState(initialTopics);
+  const [steps, setSteps] = useState(initialSteps);
+  const [wins, setWins] = useState(initialWins);
+  const [candidates, setCandidates] = useState<WinCandidate[]>([]);
+  const [panelBusy, setPanelBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const streaming = messages.some((m) => m.status === "streaming");
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const updateMessage = useCallback((id: string, update: (m: Message) => Message) => {
+    setMessages((all) => all.map((m) => (m.id === id ? update(m) : m)));
+  }, []);
+
+  async function send(text: string) {
+    if (streaming) return;
+    const history = messages.filter((m) => m.status === "done").map(({ role, content }) => ({ role, content }));
+    const assistantId = crypto.randomUUID();
+    setMessages((all) => [
+      ...all,
+      { id: crypto.randomUUID(), role: "user", content: text, status: "done" },
+      { id: assistantId, role: "assistant", content: "", status: "streaming" },
+    ]);
+    setTopics([]);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await streamChatTurn(
+        { message: text, history, pathwayId: pathway.id },
+        (event) => {
+          switch (event.type) {
+            case "text":
+              updateMessage(assistantId, (m) => ({ ...m, content: m.content + event.delta }));
+              break;
+            case "places":
+              updateMessage(assistantId, (m) => ({ ...m, places: event.items }));
+              break;
+            case "topics":
+              setTopics(event.items);
+              break;
+            case "next_steps":
+              setSteps(event.items);
+              break;
+            case "wins":
+              setWins(event.recent);
+              setCandidates(event.candidates);
+              break;
+            case "error":
+              updateMessage(assistantId, (m) => ({ ...m, status: "error", content: m.content || event.message }));
+              break;
+            case "done":
+              updateMessage(assistantId, (m) => (m.status === "streaming" ? { ...m, status: "done" } : m));
+              break;
+          }
+        },
+        controller.signal,
+      );
+      updateMessage(assistantId, (m) => (m.status === "streaming" ? { ...m, status: "done" } : m));
+    } catch (err) {
+      const aborted = controller.signal.aborted;
+      updateMessage(assistantId, (m) => ({
+        ...m,
+        status: aborted && m.content ? "done" : "error",
+        content: m.content || (aborted ? "Stopped." : (err as Error).message),
+      }));
+    } finally {
+      abortRef.current = null;
+    }
+  }
+
+  async function runActions(actions: UserAction[], optimistic?: Action[]) {
+    const previous = steps;
+    if (optimistic) setSteps(optimistic);
+    setPanelBusy(true);
+    setNotice(null);
+    try {
+      const result = await postWorkspaceActions(pathway.id, actions);
+      setSteps(result.nextSteps);
+      setWins(result.recentWins);
+      if (result.rejected > 0) setNotice("That change couldn't be saved. Try rephrasing or refreshing.");
+    } catch (err) {
+      setSteps(previous);
+      setNotice((err as Error).message);
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-gutter pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
+      <section aria-label="Conversation" className="flex flex-col lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]">
+        <div className="pt-8 pb-6">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-primary">{READINESS_LABEL[pathway.readiness_state]}</p>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">{pathway.title}</h1>
+          {pathway.current_question && <p className="mt-1.5 text-muted-foreground">{pathway.current_question}</p>}
+        </div>
+
+        <Thread messages={messages} pathwayId={pathway.id} sharedPlace={sharedPlace} pathwayTitle={pathway.title} />
+
+        <div className="sticky bottom-0 -mx-gutter space-y-3 bg-background/95 px-gutter pt-3 pb-4 backdrop-blur lg:static lg:mx-0 lg:px-0">
+          <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
+          <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
+        </div>
+      </section>
+
+      <aside aria-label="Your progress" className="mt-6 space-y-5 lg:mt-8 lg:pb-8">
+        {notice && (
+          <p role="status" className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+            {notice}
+          </p>
+        )}
+        <NextSteps pathwayId={pathway.id} steps={steps} busy={panelBusy} onAction={runActions} />
+        <RecentWins
+          wins={wins}
+          candidates={candidates}
+          busy={panelBusy}
+          onAction={(actions) => runActions(actions)}
+          onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
+        />
+      </aside>
+    </main>
+  );
+}
+
+function Thread({
+  messages,
+  pathwayId,
+  pathwayTitle,
+  sharedPlace,
+}: {
+  messages: Message[];
+  pathwayId: string;
+  pathwayTitle: string;
+  sharedPlace: WorkspaceProps["sharedPlace"];
+}) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const atBottom = useRef(true);
+
+  // Follow new content only while the person is already at the end of the thread.
+  useEffect(() => {
+    const el = endRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => (atBottom.current = entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const last = messages[messages.length - 1];
+  useEffect(() => {
+    if (atBottom.current || last?.role === "user") endRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length, last?.content, last?.role]);
+
+  return (
+    <div className="flex-1 space-y-6 lg:overflow-y-auto lg:pr-2" aria-busy={last?.status === "streaming"}>
+      {sharedPlace && (
+        <div>
+          <p className="mb-2 text-xs text-muted-foreground">Sent from your other device</p>
+          <PlaceActions place={{ label: sharedPlace.label, query: sharedPlace.query }} pathwayId={pathwayId} allowHandoff={false} />
+        </div>
+      )}
+
+      {messages.length === 0 && (
+        <p className="text-muted-foreground">
+          What&apos;s on your mind about {pathwayTitle.toLowerCase()}? Start anywhere, or pick a suggestion below.
+        </p>
+      )}
+
+      {messages.map((m) =>
+        m.role === "user" ? (
+          <div key={m.id} className="flex justify-end">
+            <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-[15px] leading-relaxed text-background">
+              {m.content}
+            </p>
+          </div>
+        ) : (
+          <article key={m.id} className="max-w-prose text-[15px] leading-relaxed">
+            {m.content ? (
+              <MessageText text={m.content} />
+            ) : (
+              <p className="text-muted-foreground" aria-label="Thinking">
+                <span className="inline-block animate-pulse">Thinking…</span>
+              </p>
+            )}
+            {m.status === "error" && (
+              <p role="alert" className="mt-2 text-sm text-muted-foreground">
+                Something interrupted this reply.
+              </p>
+            )}
+            {m.status === "done" && <MessageToolbar text={m.content} verified={m.places} pathwayId={pathwayId} />}
+          </article>
+        ),
+      )}
+      <div ref={endRef} className="h-px" />
+    </div>
+  );
+}

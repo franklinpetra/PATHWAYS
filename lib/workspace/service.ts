@@ -1,0 +1,25 @@
+import "server-only";
+import { applyMutations } from "@/lib/db/mutations";
+import { listNextSteps, listRecentWins, loadGuardState } from "@/lib/db/queries";
+import type { Action, ProgressEvent } from "@/lib/db/types";
+import { guardUserActions, type Rejection, type UserAction } from "@/lib/validation/state-guard";
+
+/** Applies explicit user actions through the state guard. Returns what was declined. */
+export async function applyUserActions(userId: string, actions: UserAction[]): Promise<Rejection[]> {
+  if (actions.length === 0) return [];
+  const result = guardUserActions(await loadGuardState(userId), actions);
+  for (const r of result.rejections) console.warn(`[state-guard] user action rejected: ${r.proposal} (${r.reason})`);
+  await applyMutations(result.mutations);
+  return result.rejections;
+}
+
+export async function loadPanels(
+  userId: string,
+  pathwayId: string | null,
+): Promise<{ nextSteps: Action[]; recentWins: ProgressEvent[] }> {
+  const [nextSteps, recentWins] = await Promise.all([
+    pathwayId ? listNextSteps(pathwayId) : Promise.resolve([]),
+    listRecentWins(userId),
+  ]);
+  return { nextSteps, recentWins };
+}

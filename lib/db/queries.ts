@@ -38,14 +38,22 @@ export async function listActionsForPathways(pathwayIds: string[]): Promise<Acti
   return unwrap<Action[]>(res, "actions");
 }
 
-/** Open Next Steps for a pathway: suggested or adopted, not yet complete. */
-export async function listNextSteps(pathwayId: string): Promise<Action[]> {
+export async function getPathway(userId: string, pathwayId: string): Promise<Pathway | null> {
+  const res = await db().from("pathways").select("*").eq("id", pathwayId).eq("user_id", userId).maybeSingle();
+  return unwrap<Pathway | null>(res, "pathway");
+}
+
+/** Visible Next Steps for a pathway: open, not removed, and not postponed past now. */
+export async function listNextSteps(pathwayId: string, now = new Date()): Promise<Action[]> {
   const res = await db()
     .from("actions")
     .select("*")
     .eq("pathway_id", pathwayId)
     .in("status", ["suggested", "user_selected"])
-    .order("display_order");
+    .is("removed_at", null)
+    .or(`postponed_until.is.null,postponed_until.lte.${now.toISOString()}`)
+    .order("display_order")
+    .order("created_at");
   return unwrap<Action[]>(res, "next steps");
 }
 
@@ -61,9 +69,13 @@ export async function listRecentWins(userId: string, limit = 5): Promise<Progres
 
 /** Snapshot of a person's state for the state guard. */
 export async function loadGuardState(userId: string): Promise<GuardState> {
-  const [contextItems, pathways] = await Promise.all([listLiveContextItems(userId), listPathways(userId)]);
+  const [contextItems, pathways, progressEvents] = await Promise.all([
+    listLiveContextItems(userId),
+    listPathways(userId),
+    listRecentWins(userId, 50),
+  ]);
   const actions = await listActionsForPathways(pathways.map((p) => p.id));
-  return { userId, contextItems, pathways, actions };
+  return { userId, contextItems, pathways, actions, progressEvents };
 }
 
 // ---------------------------------------------------------------------------

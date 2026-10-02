@@ -40,6 +40,8 @@ export interface SourcedClaim {
   sourceUrl: string;
   /** ISO date the source data was current. */
   asOf: string;
+  /** Present when the source gives a street address. */
+  place?: { name: string; address: string; latitude: number | null; longitude: number | null };
 }
 
 export interface FactFindings {
@@ -128,15 +130,21 @@ function occupationClaim(o: Occupation): SourcedClaim {
 }
 
 function programClaim(p: ProgramMatch, origin: Place | null): SourcedClaim {
-  const where = [p.city, p.county && `${p.county} County`, p.state].filter(Boolean).join(", ");
+  const address = p.street_address
+    ? [p.street_address, p.city, [p.state, p.postal_code].filter(Boolean).join(" ")].filter(Boolean).join(", ")
+    : null;
+  const where = address ?? [p.city, p.county && `${p.county} County`, p.state].filter(Boolean).join(", ");
   const distance =
     origin && p.distance_miles != null ? ` About ${Math.round(p.distance_miles)} miles from ${origin.name}.` : "";
   return {
     id: `program:${p.id}`,
     kind: "program",
-    statement: `${p.title}${p.credential_type ? ` (${p.credential_type})` : ""}, offered by ${p.provider_name} in ${where}.${distance}`,
+    statement: `${p.title}${p.credential_type ? ` (${p.credential_type})` : ""}, offered by ${p.provider_name} ${address ? "at" : "in"} ${where}.${distance}`,
     authority: p.source_authority,
     sourceUrl: p.source_url,
     asOf: p.source_as_of,
+    ...(address && {
+      place: { name: p.provider_name, address, latitude: p.latitude, longitude: p.longitude },
+    }),
   };
 }

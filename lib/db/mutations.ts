@@ -3,7 +3,7 @@ import { db } from "./supabase";
 import type { ValidatedMutation } from "@/lib/validation/state-guard";
 
 /**
- * The only write path in the application. It accepts nothing but mutations
+ * The only write path for pathway state. It accepts nothing but mutations
  * produced by the state guard, so model output can never reach the database
  * without passing deterministic validation first.
  *
@@ -27,7 +27,11 @@ function apply(m: ValidatedMutation) {
       return db().from("actions").insert(m.row);
     case "update_action_status":
       return db().from("actions").update({ status: m.status }).eq("id", m.id).eq("status", m.from);
+    case "update_action_fields":
+      return db().from("actions").update(m.patch).eq("id", m.id);
     case "insert_progress_event":
       return db().from("progress_events").insert(m.row);
+    case "update_progress_event":
+      return db().from("progress_events").update(m.patch).eq("id", m.id).eq("user_id", m.userId);
   }
 }

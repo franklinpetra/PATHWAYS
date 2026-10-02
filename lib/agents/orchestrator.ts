@@ -2,21 +2,24 @@ import "server-only";
 import { z } from "zod";
 import { generateStructured, streamChat, type ChatMessage } from "@/lib/ai/openrouter";
 import { applyMutations } from "@/lib/db/mutations";
-import { listLiveContextItems, listNextSteps, listRecentWins, loadGuardState } from "@/lib/db/queries";
-import { WIN_EVENT_TYPES, type Action, type ContextItem, type Pathway, type ProgressEvent, type ReadinessState } from "@/lib/db/types";
+import { listLiveContextItems, loadGuardState } from "@/lib/db/queries";
+import { WIN_EVENT_TYPES, type Action, type ContextItem, type Pathway, type ReadinessState } from "@/lib/db/types";
 import {
   guardMemoryProposals,
   guardStepProposals,
-  guardUserActions,
   guardWinCandidates,
+  isVisibleStep,
   type GuardResult,
   type GuardState,
   type Rejection,
   type UserAction,
   type WinCandidate,
 } from "@/lib/validation/state-guard";
+import type { ChatEvent, VerifiedPlace } from "@/lib/workspace/events";
+import { applyUserActions, loadPanels } from "@/lib/workspace/service";
+import { sanitizeTopics } from "@/lib/workspace/topics";
 import { proposeContextMutations } from "./memory";
-import { findFacts, type FactFindings } from "./retrieval";
+import { findFacts, type FactFindings, type SourcedClaim } from "./retrieval";
 
 /**
  * Dialogue Orchestrator.
@@ -25,17 +28,13 @@ import { findFacts, type FactFindings } from "./retrieval";
  *   1. Apply explicit user actions (adopt / complete a step, save an interest, confirm a goal, record a win).
  *   2. Memory Agent and Fact-Finder run in parallel; memory proposals pass through the state guard.
  *   3. Stream a reply grounded in current context and sourced facts.
- *   4. Extract candidate Next Steps (persisted as 'suggested') and candidate Wins (returned, not persisted).
+ *   4. Emit verified places cited in the reply, then extract candidate Next Steps (persisted as
+ *      'suggested'), candidate Wins (returned, not persisted), and suggested follow-up topics.
  *   5. Emit the refreshed Next Steps and Recent Wins.
  * The person sees one conversation; none of the agents are named to them.
  */
 
-export type ChatEvent =
-  | { type: "text"; delta: string }
-  | { type: "next_steps"; items: Action[] }
-  | { type: "wins"; recent: ProgressEvent[]; candidates: WinCandidate[] }
-  | { type: "error"; message: string }
-  | { type: "done" };
+export type { ChatEvent };
 
 export interface TurnInput {
   userId: string;
@@ -57,9 +56,7 @@ export async function runTurn(input: TurnInput, emit: (event: ChatEvent) => void
   }
 
   if (input.userActions.length > 0) {
-    const result = guardUserActions(state, input.userActions);
-    logRejections("user action", result.rejections);
-    await applyMutations(result.mutations);
+    await applyUserActions(input.userId, input.userActions);
     state = await loadGuardState(input.userId);
   }
 
@@ -68,10 +65,7 @@ export async function runTurn(input: TurnInput, emit: (event: ChatEvent) => void
     winCandidates = await converse(input, input.message, state, pathway, emit);
   }
 
-  const [nextSteps, recentWins] = await Promise.all([
-    pathway ? listNextSteps(pathway.id) : Promise.resolve([]),
-    listRecentWins(input.userId),
-  ]);
+  const { nextSteps, recentWins } = await loadPanels(input.userId, pathway?.id ?? null);
   emit({ type: "next_steps", items: nextSteps });
   emit({ type: "wins", recent: recentWins, candidates: winCandidates });
   emit({ type: "done" });
@@ -113,9 +107,8 @@ async function converse(
     findings = { params: null, claims: [], notes: ["Source lookup was unavailable for this message."] };
   }
 
-  const openSteps = pathway
-    ? state.actions.filter((a) => a.pathway_id === pathway.id && (a.status === "suggested" || a.status === "user_selected"))
-    : [];
+  const now = new Date();
+  const openSteps = pathway ? state.actions.filter((a) => a.pathway_id === pathway.id && isVisibleStep(a, now)) : [];
 
   const prompt = buildSystemPrompt({ contextItems: state.contextItems, pathway, openSteps, findings });
   let reply = "";
@@ -127,10 +120,15 @@ async function converse(
     emit({ type: "text", delta });
   }
 
+  const places = citedPlaces(reply, findings.claims);
+  if (places.length > 0) emit({ type: "places", items: places });
+
   if (!pathway || !reply.trim()) return [];
 
   try {
     const proposals = await proposeCandidates({ message, reply, pathway, openSteps, signal: input.signal });
+    const topics = sanitizeTopics(proposals.topics);
+    if (topics.length > 0) emit({ type: "topics", items: topics });
     await commitQuietly(
       "next steps",
       guardStepProposals(
@@ -148,6 +146,26 @@ async function converse(
     console.error("[orchestrator] candidate extraction failed", err);
     return [];
   }
+}
+
+/** Sourced places whose citation number [n] appears in the reply. */
+function citedPlaces(reply: string, claims: SourcedClaim[]): VerifiedPlace[] {
+  const cited = new Set([...reply.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) - 1));
+  return claims.flatMap((claim, index) =>
+    cited.has(index) && claim.place
+      ? [
+          {
+            label: claim.place.name,
+            address: claim.place.address,
+            latitude: claim.place.latitude,
+            longitude: claim.place.longitude,
+            authority: claim.authority,
+            asOf: claim.asOf,
+            sourceUrl: claim.sourceUrl,
+          },
+        ]
+      : [],
+  );
 }
 
 /** Applies guard output; a failure here degrades the turn rather than ending it. */
@@ -267,13 +285,18 @@ const candidatesSchema = z.object({
       learning: z.string().nullable().describe("What they learned, in their terms, if they said."),
     }),
   ),
+  topics: z
+    .array(z.string())
+    .describe("2-3 follow-up topics the person might raise next, in their voice, under 8 words each."),
 });
 
 const CANDIDATES_PROMPT = `You review one exchange between a person and their pathway thinking partner and pull out structured items. You never speak to the person.
 
 next_steps: concrete actions the reply proposed or the person said they intend to take. At most 3. Each must be small, specific, and doable within about two weeks. Skip anything that duplicates an open step. Return none if the exchange did not point to an action.
 
-wins: only things the person says they have already done that move this pathway forward: submitting an application, talking with someone in the field, contacting a program, attending an event, preparing a document, finishing research, or making a decision. Using this app, logging in, or chatting is never a win. Return none if nothing qualifies.`;
+wins: only things the person says they have already done that move this pathway forward: submitting an application, talking with someone in the field, contacting a program, attending an event, preparing a document, finishing research, or making a decision. Using this app, logging in, or chatting is never a win. Return none if nothing qualifies.
+
+topics: 2-3 natural follow-ups the person might want to explore next, phrased as they would say them (e.g. "What does the first year cost?"). Never repeat what was just answered.`;
 
 async function proposeCandidates(args: {
   message: string;

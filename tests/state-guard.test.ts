@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Action, ContextItem, Pathway } from "@/lib/db/types";
+import type { Action, ContextItem, Pathway, ProgressEvent } from "@/lib/db/types";
 import {
   guardMemoryProposals,
   guardStepProposals,
@@ -40,6 +40,8 @@ function step(overrides: Partial<Action> & { id: string }): Action {
     status: "suggested",
     display_order: 0,
     created_by: "system",
+    postponed_until: null,
+    removed_at: null,
     created_at: "2026-09-01T00:00:00Z",
     updated_at: "2026-09-01T00:00:00Z",
     ...overrides,
@@ -61,7 +63,7 @@ const pathway: Pathway = {
 };
 
 function state(overrides: Partial<GuardState> = {}): GuardState {
-  return { userId: USER, contextItems: [], pathways: [pathway], actions: [], ...overrides };
+  return { userId: USER, contextItems: [], pathways: [pathway], actions: [], progressEvents: [], ...overrides };
 }
 
 function create(overrides: Partial<ContextCreateProposal>): ContextCreateProposal {
@@ -200,6 +202,35 @@ describe("next steps", () => {
     expect(r.rejections).toHaveLength(3);
   });
 
+  it("does not re-suggest a step the person removed or completed", () => {
+    const removed = step({ id: "r", title: "Email the advisor", removed_at: "2026-09-02T00:00:00Z" });
+    const done = step({ id: "d", title: "Tour the campus", status: "user_reported_complete" });
+    const r = guardStepProposals(state({ actions: [removed, done] }), [
+      { pathway_id: PATHWAY, title: "email the advisor", why: null, how: null },
+      { pathway_id: PATHWAY, title: "Tour the campus", why: null, how: null },
+    ]);
+    expect(r.mutations).toEqual([]);
+  });
+
+  it("only suggests until three steps are visible; postponed steps don't count", () => {
+    const now = new Date("2026-10-01T00:00:00Z");
+    const actions = [
+      step({ id: "a", title: "A" }),
+      step({ id: "b", title: "B", status: "user_selected" }),
+      step({ id: "p", title: "P", postponed_until: "2026-10-05T00:00:00Z" }),
+    ];
+    const r = guardStepProposals(
+      state({ actions }),
+      [
+        { pathway_id: PATHWAY, title: "C", why: null, how: null },
+        { pathway_id: PATHWAY, title: "D", why: null, how: null },
+      ],
+      now,
+    );
+    expect(r.mutations).toHaveLength(1);
+    expect(r.rejections[0].reason).toMatch(/already shows 3/);
+  });
+
   it("rejects steps on pathways the person does not own", () => {
     const r = guardStepProposals(state(), [{ pathway_id: OTHER_PATHWAY, title: "A", why: null, how: null }]);
     expect(r.rejections[0].reason).toBe("pathway not found");
@@ -291,5 +322,100 @@ describe("wins", () => {
       op: "insert_progress_event",
       row: { evidence_status: "user_reported", source: "user_recorded", user_id: USER },
     });
+  });
+});
+
+describe("step controls", () => {
+  const now = new Date("2026-10-01T12:00:00Z");
+
+  it("postpones a step for a week", () => {
+    const r = guardUserActions(state({ actions: [step({ id: "s1" })] }), [{ type: "postpone_step", actionId: "s1" }], now);
+    expect(r.mutations[0]).toMatchObject({
+      op: "update_action_fields",
+      patch: { postponed_until: "2026-10-08T12:00:00.000Z" },
+    });
+  });
+
+  it("removes a step softly, and a removed step cannot be adopted or completed", () => {
+    const s1 = step({ id: "s1" });
+    const r = guardUserActions(
+      state({ actions: [s1] }),
+      [
+        { type: "remove_step", actionId: "s1" },
+        { type: "adopt_step", actionId: "s1" },
+        { type: "complete_step", actionId: "s1" },
+      ],
+      now,
+    );
+    expect(r.mutations).toHaveLength(1);
+    expect(r.mutations[0]).toMatchObject({ patch: { removed_at: now.toISOString() } });
+    expect(r.rejections).toHaveLength(2);
+  });
+
+  it("reorders open steps on one pathway, writing only changed positions", () => {
+    const actions = [step({ id: "a", display_order: 0 }), step({ id: "b", display_order: 1 }), step({ id: "c", display_order: 2 })];
+    const r = guardUserActions(state({ actions }), [
+      { type: "reorder_steps", pathwayId: PATHWAY, actionIds: ["a", "c", "b"] },
+    ]);
+    expect(r.mutations).toEqual([
+      expect.objectContaining({ id: "c", patch: { display_order: 1 } }),
+      expect.objectContaining({ id: "b", patch: { display_order: 2 } }),
+    ]);
+  });
+
+  it("rejects reordering foreign, closed, or duplicate steps", () => {
+    const actions = [step({ id: "a" }), step({ id: "x", pathway_id: OTHER_PATHWAY }), step({ id: "done", status: "user_reported_complete" })];
+    const r = guardUserActions(state({ actions }), [
+      { type: "reorder_steps", pathwayId: PATHWAY, actionIds: ["a", "x"] },
+      { type: "reorder_steps", pathwayId: PATHWAY, actionIds: ["a", "done"] },
+      { type: "reorder_steps", pathwayId: PATHWAY, actionIds: ["a", "a"] },
+    ]);
+    expect(r.mutations).toEqual([]);
+    expect(r.rejections).toHaveLength(3);
+  });
+
+  it("sets and clears a due date, but not one in the past", () => {
+    const s = state({ actions: [step({ id: "s1" })] });
+    expect(guardUserActions(s, [{ type: "set_step_due", actionId: "s1", dueDate: "2026-10-15" }], now).mutations[0]).toMatchObject({
+      patch: { due_at: "2026-10-15T00:00:00.000Z" },
+    });
+    expect(guardUserActions(s, [{ type: "set_step_due", actionId: "s1", dueDate: null }], now).mutations[0]).toMatchObject({
+      patch: { due_at: null },
+    });
+    expect(guardUserActions(s, [{ type: "set_step_due", actionId: "s1", dueDate: "2026-09-01" }], now).mutations).toEqual([]);
+  });
+});
+
+describe("editing wins", () => {
+  const win: ProgressEvent = {
+    id: "w1",
+    user_id: USER,
+    pathway_id: PATHWAY,
+    event_type: "conversation_held",
+    title: "Talked with a nurse",
+    evidence_status: "user_reported",
+    source: "user_recorded",
+    learning: "Night shifts pay more",
+    occurred_at: "2026-09-20T00:00:00Z",
+    created_at: "2026-09-20T00:00:00Z",
+  };
+
+  it("lets the person rephrase a win, keeping their learning unless they change it", () => {
+    const r = guardUserActions(state({ progressEvents: [win] }), [
+      { type: "edit_win", progressEventId: "w1", title: "Had coffee with Dana, an ICU nurse" },
+    ]);
+    expect(r.mutations[0]).toMatchObject({
+      op: "update_progress_event",
+      patch: { title: "Had coffee with Dana, an ICU nurse", learning: "Night shifts pay more" },
+    });
+  });
+
+  it("rejects edits that turn a win into an activity count, or target someone else's win", () => {
+    const r = guardUserActions(state({ progressEvents: [win] }), [
+      { type: "edit_win", progressEventId: "w1", title: "Logged in 5 days in a row" },
+      { type: "edit_win", progressEventId: "not-mine", title: "Anything" },
+    ]);
+    expect(r.mutations).toEqual([]);
+    expect(r.rejections).toHaveLength(2);
   });
 });

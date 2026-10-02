@@ -114,6 +114,10 @@ export interface Action {
   status: ActionStatus;
   display_order: number;
   created_by: Actor;
+  /** Hidden from Next Steps until this time ("Not now"). */
+  postponed_until: string | null;
+  /** Removed by the person; kept so it is not suggested again. */
+  removed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -155,9 +159,13 @@ export interface ProgramMatch {
   title: string;
   provider_name: string;
   credential_type: string | null;
+  street_address: string | null;
   city: string | null;
   county: string | null;
   state: string;
+  postal_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
   source_authority: string;
   source_url: string;
   source_as_of: string;

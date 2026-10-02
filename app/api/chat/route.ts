@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { runTurn, type ChatEvent } from "@/lib/agents/orchestrator";
+import { runTurn } from "@/lib/agents/orchestrator";
 import { getSessionUserId } from "@/lib/auth/session";
 import { userActionSchema } from "@/lib/validation/state-guard";
+import type { ChatEvent } from "@/lib/workspace/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ const bodySchema = z
  *
  * Streams newline-delimited JSON (application/x-ndjson), one ChatEvent per line:
  *   {"type":"text","delta":"..."}                         reply text, in order
+ *   {"type":"places","items":[...]}                       sourced addresses cited in the reply
+ *   {"type":"topics","items":[...]}                       suggested follow-up topics
  *   {"type":"next_steps","items":[...]}                   open Next Steps for the pathway
  *   {"type":"wins","recent":[...],"candidates":[...]}     Recent Wins, plus wins the person may choose to record
  *   {"type":"error","message":"..."}

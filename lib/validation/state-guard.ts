@@ -26,6 +26,7 @@ import {
  *  - AI inferences stay provisional (thought / inference / possibility).
  *  - saved_interest and confirmed_goal are reachable only through explicit user actions.
  *  - AI-drafted Next Steps are created as 'suggested' and only the user can adopt or complete them.
+ *    Ordering, "Not now", removal, and due dates are the person's alone; the AI never sets a date.
  *  - Recent Wins must be meaningful pathway actions, never logins, sessions, or chat counts.
  *  - A current user statement silently supersedes the stale context it contradicts.
  */
@@ -42,6 +43,7 @@ type ContextItemInsert = Pick<
 >;
 type ContextItemPatch = Partial<Pick<ContextItem, "semantic_status" | "provenance" | "temporal_status" | "superseded_by">>;
 type ActionInsert = Pick<Action, "pathway_id" | "title" | "why" | "how" | "status" | "display_order" | "created_by">;
+type ActionFieldPatch = Partial<Pick<Action, "display_order" | "postponed_until" | "removed_at" | "due_at">>;
 type ProgressEventInsert = Pick<
   ProgressEvent,
   "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning"
@@ -52,7 +54,9 @@ type Mutation =
   | { op: "update_context_item"; id: string; userId: string; patch: ContextItemPatch }
   | { op: "insert_action"; row: ActionInsert }
   | { op: "update_action_status"; id: string; from: ActionStatus; status: ActionStatus }
-  | { op: "insert_progress_event"; row: ProgressEventInsert };
+  | { op: "update_action_fields"; id: string; patch: ActionFieldPatch }
+  | { op: "insert_progress_event"; row: ProgressEventInsert }
+  | { op: "update_progress_event"; id: string; userId: string; patch: { title: string; learning: string | null } };
 
 export type ValidatedMutation = Mutation & { readonly [validated]: true };
 
@@ -76,8 +80,10 @@ export interface GuardState {
   /** Current and stale items. */
   contextItems: ContextItem[];
   pathways: Pathway[];
-  /** All actions on the person's pathways. */
+  /** All actions on the person's pathways, including removed ones. */
   actions: Action[];
+  /** The person's recent progress events (the ones they can see and edit). */
+  progressEvents: ProgressEvent[];
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +122,18 @@ export function canTransitionTemporal(from: TemporalStatus, to: TemporalStatus):
 
 const LIMITS = { displayText: 280, title: 120, detail: 600, userLanguage: 1000 } as const;
 const MAX_SUGGESTED_STEPS_PER_TURN = 3;
+/** Next Steps stays right-sized: the AI only suggests until this many steps are visible. */
+export const MAX_VISIBLE_STEPS = 3;
+const POSTPONE_DAYS = 7;
+
+function isOpen(a: Action): boolean {
+  return (a.status === "suggested" || a.status === "user_selected") && a.removed_at === null;
+}
+
+/** Open and not postponed past `now`: what the Next Steps card shows. */
+export function isVisibleStep(a: Action, now: Date): boolean {
+  return isOpen(a) && (a.postponed_until === null || new Date(a.postponed_until) <= now);
+}
 
 function cleanText(value: string | null | undefined, max: number): string | null {
   if (value == null) return null;
@@ -149,13 +167,19 @@ function clampConfidence(value: number | null | undefined): number | null {
 const ACTIVITY_SIGNAL =
   /\b(log(ged)?[\s-]?in|sign(ed)?[\s-]?in|streak|opened (the )?app|visited (the )?app|came back|returned to (the )?app|\d+\s+(messages?|chats?|sessions?|visits?)|messages? sent|chat count)\b/i;
 
+function checkWinTitle(title: string | null): string | null {
+  if (!title) return "title is empty or too long";
+  if (ACTIVITY_SIGNAL.test(title)) return "logins, sessions, and chat activity are not wins";
+  return null;
+}
+
 /** Wins must be meaningful pathway actions, not engagement signals. */
 function checkMeaningfulWin(state: GuardState, eventType: string, title: string | null, pathwayId: string | null): string | null {
   if (!(WIN_EVENT_TYPES as readonly string[]).includes(eventType)) {
     return `event_type '${eventType}' is not a meaningful pathway action`;
   }
-  if (!title) return "title is empty or too long";
-  if (ACTIVITY_SIGNAL.test(title)) return "logins, sessions, and chat activity are not wins";
+  const titleError = checkWinTitle(title);
+  if (titleError) return titleError;
   if (!pathwayId) return "a win must belong to a pathway";
   if (!ownsPathway(state, pathwayId)) return "pathway not found";
   return null;
@@ -323,13 +347,14 @@ export interface StepProposal {
   created_by?: Actor;
 }
 
-export function guardStepProposals(state: GuardState, proposals: StepProposal[]): GuardResult {
+export function guardStepProposals(state: GuardState, proposals: StepProposal[], now = new Date()): GuardResult {
   const result: GuardResult = { mutations: [], rejections: [] };
-  const openTitles = new Set(
-    state.actions
-      .filter((a) => a.status === "suggested" || a.status === "user_selected")
-      .map((a) => normalizeForMatch(a.title)),
-  );
+  // Includes completed and removed steps: the AI should not re-suggest what the person already did or declined.
+  const knownTitles = new Set(state.actions.map((a) => `${a.pathway_id}:${normalizeForMatch(a.title)}`));
+  const visibleCount = new Map<string, number>();
+  for (const a of state.actions) {
+    if (isVisibleStep(a, now)) visibleCount.set(a.pathway_id, (visibleCount.get(a.pathway_id) ?? 0) + 1);
+  }
   const nextOrder = new Map<string, number>();
 
   for (const p of proposals) {
@@ -357,8 +382,13 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[])
       reject("title is empty or too long");
       continue;
     }
-    if (openTitles.has(normalizeForMatch(title))) {
-      reject("duplicates an open step");
+    const key = `${p.pathway_id}:${normalizeForMatch(title)}`;
+    if (knownTitles.has(key)) {
+      reject("duplicates an existing or removed step");
+      continue;
+    }
+    if ((visibleCount.get(p.pathway_id) ?? 0) >= MAX_VISIBLE_STEPS) {
+      reject(`the pathway already shows ${MAX_VISIBLE_STEPS} steps`);
       continue;
     }
 
@@ -368,7 +398,8 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[])
     }
     const order = nextOrder.get(p.pathway_id)!;
     nextOrder.set(p.pathway_id, order + 1);
-    openTitles.add(normalizeForMatch(title));
+    knownTitles.add(key);
+    visibleCount.set(p.pathway_id, (visibleCount.get(p.pathway_id) ?? 0) + 1);
 
     result.mutations.push(
       seal({
@@ -440,6 +471,10 @@ export function guardWinCandidates(
 export const userActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("adopt_step"), actionId: z.uuid() }),
   z.object({ type: z.literal("complete_step"), actionId: z.uuid() }),
+  z.object({ type: z.literal("postpone_step"), actionId: z.uuid() }),
+  z.object({ type: z.literal("remove_step"), actionId: z.uuid() }),
+  z.object({ type: z.literal("reorder_steps"), pathwayId: z.uuid(), actionIds: z.array(z.uuid()).min(1).max(20) }),
+  z.object({ type: z.literal("set_step_due"), actionId: z.uuid(), dueDate: z.iso.date().nullable() }),
   z.object({ type: z.literal("save_interest"), contextItemId: z.uuid() }),
   z.object({ type: z.literal("confirm_goal"), contextItemId: z.uuid() }),
   z.object({
@@ -451,6 +486,12 @@ export const userActionSchema = z.discriminatedUnion("type", [
       learning: z.string().nullable().optional(),
     }),
   }),
+  z.object({
+    type: z.literal("edit_win"),
+    progressEventId: z.uuid(),
+    title: z.string(),
+    learning: z.string().nullable().optional(),
+  }),
 ]);
 export type UserAction = z.infer<typeof userActionSchema>;
 
@@ -458,10 +499,15 @@ export type UserAction = z.infer<typeof userActionSchema>;
 const SAVE_FROM: readonly SemanticStatus[] = ["thought", "inference", "possibility", "confirmed_context"];
 const CONFIRM_GOAL_FROM: readonly SemanticStatus[] = ["possibility", "confirmed_context", "saved_interest"];
 
-export function guardUserActions(state: GuardState, actions: UserAction[]): GuardResult {
+export function guardUserActions(state: GuardState, actions: UserAction[], now = new Date()): GuardResult {
   const result: GuardResult = { mutations: [], rejections: [] };
   const actionsById = new Map(state.actions.map((a) => [a.id, { ...a }]));
   const itemsById = new Map(state.contextItems.map((i) => [i.id, { ...i }]));
+  const eventsById = new Map(state.progressEvents.map((e) => [e.id, e]));
+  const openStep = (id: string) => {
+    const step = actionsById.get(id);
+    return step && isOpen(step) ? step : null;
+  };
 
   for (const action of actions) {
     const reject = (reason: string) => result.rejections.push({ proposal: action.type, reason });
@@ -471,7 +517,7 @@ export function guardUserActions(state: GuardState, actions: UserAction[]): Guar
       case "complete_step": {
         const step = actionsById.get(action.actionId);
         const rule = ACTION_TRANSITIONS[action.type];
-        if (!step) {
+        if (!step || step.removed_at !== null) {
           reject("step not found");
           break;
         }
@@ -498,6 +544,86 @@ export function guardUserActions(state: GuardState, actions: UserAction[]): Guar
             }),
           );
         }
+        break;
+      }
+
+      case "postpone_step": {
+        const step = openStep(action.actionId);
+        if (!step) {
+          reject("step not found or no longer open");
+          break;
+        }
+        const until = new Date(now.getTime() + POSTPONE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        result.mutations.push(seal({ op: "update_action_fields", id: step.id, patch: { postponed_until: until } }));
+        step.postponed_until = until;
+        break;
+      }
+
+      case "remove_step": {
+        const step = openStep(action.actionId);
+        if (!step) {
+          reject("step not found or no longer open");
+          break;
+        }
+        const removedAt = now.toISOString();
+        result.mutations.push(seal({ op: "update_action_fields", id: step.id, patch: { removed_at: removedAt } }));
+        step.removed_at = removedAt;
+        break;
+      }
+
+      case "reorder_steps": {
+        const steps = action.actionIds.map(openStep);
+        if (new Set(action.actionIds).size !== action.actionIds.length) {
+          reject("duplicate step in order");
+        } else if (steps.some((s) => !s || s.pathway_id !== action.pathwayId) || !ownsPathway(state, action.pathwayId)) {
+          reject("every step must be open and on the same pathway");
+        } else {
+          steps.forEach((s, index) => {
+            if (s!.display_order === index) return;
+            result.mutations.push(seal({ op: "update_action_fields", id: s!.id, patch: { display_order: index } }));
+            s!.display_order = index;
+          });
+        }
+        break;
+      }
+
+      case "set_step_due": {
+        const step = openStep(action.actionId);
+        if (!step) {
+          reject("step not found or no longer open");
+          break;
+        }
+        // Date-only values; allow "yesterday" in UTC so a person west of UTC can still pick today.
+        const earliest = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        if (action.dueDate !== null && action.dueDate < earliest) {
+          reject("due date is in the past");
+          break;
+        }
+        const dueAt = action.dueDate === null ? null : `${action.dueDate}T00:00:00.000Z`;
+        result.mutations.push(seal({ op: "update_action_fields", id: step.id, patch: { due_at: dueAt } }));
+        step.due_at = dueAt;
+        break;
+      }
+
+      case "edit_win": {
+        const event = eventsById.get(action.progressEventId);
+        const title = cleanText(action.title, LIMITS.title);
+        const error = !event ? "win not found" : checkWinTitle(title);
+        if (error) {
+          reject(error);
+          break;
+        }
+        result.mutations.push(
+          seal({
+            op: "update_progress_event",
+            id: event!.id,
+            userId: state.userId,
+            patch: {
+              title: title!,
+              learning: action.learning === undefined ? event!.learning : cleanText(action.learning, LIMITS.detail),
+            },
+          }),
+        );
         break;
       }
 
