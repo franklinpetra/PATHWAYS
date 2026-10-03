@@ -200,14 +200,55 @@ function stripCodeFence(text: string): string {
   return match ? match[1] : text.trim();
 }
 
+/** A web page the model read through OpenRouter's web plugin, with the text it extracted. */
+export interface UrlCitation {
+  url: string;
+  title: string | null;
+  content: string;
+}
+
+/** OpenRouter web plugin settings. https://openrouter.ai/docs/guides/features/plugins/web-search */
+export interface WebSearchOptions {
+  maxResults: number;
+  includeDomains: readonly string[];
+}
+
 /** Requests JSON conforming to `schema` and returns it validated. */
 export async function generateStructured<T extends z.ZodType>(req: StructuredRequest<T>): Promise<z.infer<T>> {
+  return (await requestStructured(req)).data;
+}
+
+/**
+ * Like `generateStructured`, but lets the model search the web (restricted to `web.includeDomains`)
+ * and also returns the pages it read, so callers can verify every claim against real page text.
+ */
+export async function generateStructuredWithWeb<T extends z.ZodType>(
+  req: StructuredRequest<T> & { web: WebSearchOptions },
+): Promise<{ data: z.infer<T>; citations: UrlCitation[] }> {
+  const { data, message } = await requestStructured(req, {
+    plugins: [{ id: "web", engine: "exa", max_results: req.web.maxResults, include_domains: req.web.includeDomains }],
+  });
+  const annotations: unknown[] = Array.isArray(message?.annotations) ? message.annotations : [];
+  const citations = annotations.flatMap((a) => {
+    const c = (a as { type?: string; url_citation?: { url?: unknown; title?: unknown; content?: unknown } }).url_citation;
+    return typeof c?.url === "string" && typeof c.content === "string"
+      ? [{ url: c.url, title: typeof c.title === "string" ? c.title : null, content: c.content }]
+      : [];
+  });
+  return { data, citations };
+}
+
+async function requestStructured<T extends z.ZodType>(
+  req: StructuredRequest<T>,
+  extra: Record<string, unknown> = {},
+): Promise<{ data: z.infer<T>; message: { annotations?: unknown } | undefined }> {
   const model = resolveModel(req.model, "PATHWAYS_STRUCTURED_MODEL");
   const { $schema: _, ...jsonSchema } = z.toJSONSchema(req.schema) as Record<string, unknown>;
 
   const res = await post(
     {
       ...baseBody(model, req.messages, req),
+      ...extra,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -224,7 +265,8 @@ export async function generateStructured<T extends z.ZodType>(req: StructuredReq
   );
 
   const data = await res.json();
-  const content: unknown = data?.choices?.[0]?.message?.content;
+  const message = data?.choices?.[0]?.message;
+  const content: unknown = message?.content;
   if (typeof content !== "string" || !content.trim()) {
     throw new StructuredOutputError("Model returned no content", JSON.stringify(data));
   }
@@ -240,5 +282,5 @@ export async function generateStructured<T extends z.ZodType>(req: StructuredReq
   if (!result.success) {
     throw new StructuredOutputError("Model output did not match schema", content, result.error.issues);
   }
-  return result.data;
+  return { data: result.data, message };
 }

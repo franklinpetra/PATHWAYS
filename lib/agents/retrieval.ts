@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { generateStructured } from "@/lib/ai/openrouter";
+import { generateStructured, generateStructuredWithWeb } from "@/lib/ai/openrouter";
 import { normalizeCounty } from "@/lib/data/washington/fields";
 import { licensureClaims } from "@/lib/data/licensure/claims";
 import {
@@ -13,6 +13,7 @@ import {
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
 import { supportedClaims } from "./grounding";
+import { OFFICIAL_FACTS_PROMPT, OFFICIAL_SOURCES, officialFactsSchema, verifyOfficialFacts, type OfficialClaim } from "./official-sources";
 import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
 
 /**
@@ -25,9 +26,15 @@ import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
  * authority. Claims without complete, dated provenance are dropped before the prompt.
  * If the tables have nothing, the agent says the fact is unconfirmed; an empty result is
  * never presented as proof that an opportunity doesn't exist.
+ *
+ * In parallel, a live search of official sources (see official-sources.ts) answers the rules,
+ * requirements, and steps the tables don't hold. Its facts are verified against the retrieved
+ * page text before they become claims, and a slow or failed search never blocks the reply.
  */
 
 const DEFAULT_RADIUS_MILES = 25;
+const OFFICIAL_SEARCH_TIMEOUT_MS = 20_000;
+const OFFICIAL_SEARCH_RESULTS = 8;
 const MAX_RADIUS_MILES = 100;
 
 const lookupParamsSchema = z.object({
@@ -37,6 +44,12 @@ const lookupParamsSchema = z.object({
   occupation: z.string().nullable().describe("Occupation, trade, or field in plain words, e.g. 'electrician'."),
   location: z.string().nullable().describe("City or county name only, e.g. 'Tacoma' or 'Pierce County'. Null if not stated."),
   radius_miles: z.number().nullable().describe("Only if the person stated a distance."),
+  official_query: z
+    .string()
+    .nullable()
+    .describe(
+      "A web search query for official sources on the rules, requirements, steps, fees, permits, licenses, or program prerequisites this message depends on, e.g. 'Washington pharmacy technician license requirements' or 'Tacoma food truck permit'. Null if the message needs no such facts.",
+    ),
 });
 
 export type LookupParams = z.infer<typeof lookupParamsSchema>;
@@ -48,7 +61,7 @@ Only extract what is stated or recorded. Never guess an occupation or location.`
 export interface SourcedClaim {
   /** Stable reference, e.g. "program:<uuid>" or "occupation:29-1141.00". */
   id: string;
-  kind: "occupation" | "program" | "apprenticeship" | "licensure";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official";
   statement: string;
   source: SourceAttribution;
   /** Present when the source gives a street address. */
@@ -85,8 +98,51 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
     ],
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+  const official = params.official_query?.trim()
+    ? findOfficialFacts(params.official_query.trim(), today, input.signal)
+    : Promise.resolve({ claims: [], notes: [] });
+  const tables = findTableFacts(params, today);
+  const [fromTables, fromOfficial] = await Promise.all([tables, official]);
+  return {
+    params,
+    claims: [...fromTables.claims, ...fromOfficial.claims],
+    notes: [...fromTables.notes, ...fromOfficial.notes],
+  };
+}
+
+async function findOfficialFacts(
+  query: string,
+  today: string,
+  signal?: AbortSignal,
+): Promise<{ claims: OfficialClaim[]; notes: string[] }> {
+  const timeout = AbortSignal.timeout(OFFICIAL_SEARCH_TIMEOUT_MS);
+  try {
+    const { data, citations } = await generateStructuredWithWeb({
+      name: "official_facts",
+      schema: officialFactsSchema,
+      temperature: 0,
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      web: { maxResults: OFFICIAL_SEARCH_RESULTS, includeDomains: OFFICIAL_SOURCES.map((s) => s.domain) },
+      messages: [
+        { role: "system", content: OFFICIAL_FACTS_PROMPT },
+        { role: "user", content: `Question: ${query}\nLocation: Washington State, unless the question names somewhere else.` },
+      ],
+    });
+    const { claims, dropped } = verifyOfficialFacts(data.facts, citations, today);
+    const notes = [`Official-source search for "${query}": ${count(claims.length)}.`];
+    if (dropped > 0) notes.push(`${dropped} search result${dropped === 1 ? " was" : "s were"} left out because the quoted text couldn't be verified.`);
+    return { claims, notes };
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.error("[fact-finder] official-source search failed", err);
+    return { claims: [], notes: [] };
+  }
+}
+
+async function findTableFacts(params: LookupParams, today: string): Promise<{ claims: SourcedClaim[]; notes: string[] }> {
   const phrase = params.occupation?.trim();
-  if (!params.needs_lookup || !phrase) return { params, claims: [], notes: [] };
+  if (!params.needs_lookup || !phrase) return { claims: [], notes: [] };
 
   const notes: string[] = [];
   const { place, county } = await resolveLocation(params.location, notes);
@@ -96,7 +152,6 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
   const socCodes = occupations.map((o) => o.onet_soc_code);
   if (occupations.length === 0) notes.push(`No occupation in the O*NET table matched "${phrase}" (unconfirmed, not proof it doesn't exist).`);
 
-  const today = new Date().toISOString().slice(0, 10);
   const [programs, apprenticeships, credentials] = await Promise.all([
     socCodes.length
       ? searchTrainingPrograms({
@@ -137,7 +192,7 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
   );
   if (dropped > 0) notes.push(`${dropped} record${dropped === 1 ? " was" : "s were"} left out for missing or future-dated provenance.`);
 
-  return { params, claims, notes };
+  return { claims, notes };
 }
 
 async function resolveLocation(location: string | null, notes: string[]): Promise<{ place: Place | null; county: string | null }> {
