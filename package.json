@@ -11,6 +11,7 @@
     "seed:wa": "tsx scripts/seed-washington.ts",
     "sync:apprenticeships": "tsx scripts/sync-apprenticeships.ts",
     "sync:places": "tsx scripts/sync-places.ts",
+    "sync:wages": "tsx scripts/sync-wages.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
     "load:licensure": "tsx scripts/load-licensure.ts",
     "reset-user": "tsx scripts/reset-user.ts",
@@ -36,6 +37,7 @@
     "tailwindcss": "^4.1.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.0",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

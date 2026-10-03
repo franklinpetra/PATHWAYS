@@ -25,6 +25,10 @@ export const SOURCES = {
     sourceName: "O*NET OnLine",
     verificationAuthority: "U.S. Department of Labor, Employment and Training Administration",
   },
+  esd_oews: {
+    sourceName: "Occupational Employment and Wage Estimates (OEWS)",
+    verificationAuthority: "Washington State Employment Security Department",
+  },
 } as const satisfies Record<string, SourceDefinition>;
 
 export type SourceKey = keyof typeof SOURCES;

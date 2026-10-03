@@ -156,6 +156,19 @@ export interface Occupation extends SourceColumns {
   description: string | null;
 }
 
+export interface OccupationWage extends SourceColumns {
+  id: string;
+  area_name: string;
+  area_counties: string[];
+  soc_code: string;
+  title: string;
+  employment: number | null;
+  p25_hourly: number | null;
+  median_hourly: number | null;
+  p75_hourly: number | null;
+  mean_annual: number | null;
+}
+
 export interface Place {
   id: string;
   name: string;

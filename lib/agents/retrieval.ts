@@ -3,7 +3,9 @@ import { z } from "zod";
 import { generateStructured, generateStructuredWithWeb } from "@/lib/ai/openrouter";
 import { normalizeCounty } from "@/lib/data/washington/fields";
 import { licensureClaims } from "@/lib/data/licensure/claims";
+import { areaForCounty } from "@/lib/data/washington/esd-wages";
 import {
+  findOccupationWages,
   findOccupations,
   findPlace,
   searchApprenticeships,
@@ -13,6 +15,7 @@ import {
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
 import { supportedClaims } from "./grounding";
+import { incomeTarget, incomeTargetClaim, localWages, wageClaim } from "./income";
 import { OFFICIAL_FACTS_PROMPT, OFFICIAL_SOURCES, officialFactsSchema, verifyOfficialFacts, type OfficialClaim } from "./official-sources";
 import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
 
@@ -21,11 +24,16 @@ import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
  *
  * The model's only job here is to extract search parameters. Every claim is then
  * assembled deterministically from rows in the Washington source tables (O*NET,
- * Career Bridge / SBCTC training programs, L&I ARTS apprenticeships, licensure records),
+ * Career Bridge / SBCTC training programs, L&I ARTS apprenticeships, licensure records,
+ * ESD occupational wages),
  * each carrying its source name, observation period, as-of date, and verification
  * authority. Claims without complete, dated provenance are dropped before the prompt.
  * If the tables have nothing, the agent says the fact is unconfirmed; an empty result is
  * never presented as proof that an opportunity doesn't exist.
+ *
+ * Occupations come from what the person names and from the skills they describe, so
+ * "I code" still finds software wages. When they state a housing cost, income.ts turns it
+ * into an income target and compares each occupation's wages with it, in code.
  *
  * In parallel, a live search of official sources (see official-sources.ts) answers the rules,
  * requirements, and steps the tables don't hold. Its facts are verified against the retrieved
@@ -37,31 +45,48 @@ const OFFICIAL_SEARCH_TIMEOUT_MS = 20_000;
 const OFFICIAL_SEARCH_RESULTS = 8;
 const MAX_RADIUS_MILES = 100;
 
+const MAX_OCCUPATION_PHRASES = 4;
+const MAX_WAGE_CLAIMS = 6;
+
 const lookupParamsSchema = z.object({
   needs_lookup: z
     .boolean()
-    .describe("True only if answering well requires programs, apprenticeships, or occupation data for a specific field."),
-  occupation: z.string().nullable().describe("Occupation, trade, or field in plain words, e.g. 'electrician'."),
+    .describe(
+      "True if answering well needs programs, apprenticeships, wages, or occupation data: they name a field, describe skills or experience, ask what work fits or pays most, or need income.",
+    ),
+  occupation: z.string().nullable().describe("Occupation, trade, or field they name, in plain words, e.g. 'electrician'."),
+  skill_occupations: z
+    .array(z.string())
+    .describe(
+      "Up to 3 standard occupation titles that the skills or experience they describe point to directly, e.g. 'I code with LLMs' -> ['software developers', 'web developers']; 'I managed a restaurant' -> ['food service managers']. Empty if they describe none.",
+    ),
+  monthly_housing_cost: z
+    .number()
+    .nullable()
+    .describe("Their stated monthly rent or mortgage in US dollars, e.g. '$5K rent' -> 5000. Null if not stated."),
+  financial_urgency: z
+    .boolean()
+    .describe("True if they say they urgently need money, are at risk of losing housing, or can't cover basics."),
   location: z.string().nullable().describe("City or county name only, e.g. 'Tacoma' or 'Pierce County'. Null if not stated."),
   radius_miles: z.number().nullable().describe("Only if the person stated a distance."),
   official_query: z
     .string()
     .nullable()
     .describe(
-      "A web search query for official sources on the rules, requirements, steps, fees, permits, licenses, or program prerequisites this message depends on, e.g. 'Washington pharmacy technician license requirements' or 'Tacoma food truck permit'. Null if the message needs no such facts.",
+      "A web search query for official sources on the rules, requirements, steps, fees, permits, licenses, benefits, or program prerequisites this message depends on, e.g. 'Washington pharmacy technician license requirements', 'Tacoma food truck permit', 'Washington emergency cash and rent assistance for families' when they urgently need money, or 'Washington business license and self-employment tax for freelancers' when they could sell services. Null if the message needs no such facts.",
     ),
 });
 
 export type LookupParams = z.infer<typeof lookupParamsSchema>;
 
-const SYSTEM_PROMPT = `Extract search parameters from a person's message about education, training, apprenticeships, or careers in Washington State.
-Use their known context for a location if the message does not name one.
-Only extract what is stated or recorded. Never guess an occupation or location.`;
+const SYSTEM_PROMPT = `Extract search parameters from a person's message about work, income, education, training, apprenticeships, or careers in Washington State.
+Use their known context for a location or housing cost if the message does not state one.
+Extract only what is stated or recorded, or what their described skills point to directly. Never guess a location.`;
 
 export interface SourcedClaim {
   /** Stable reference, e.g. "program:<uuid>" or "occupation:29-1141.00". */
   id: string;
-  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official" | "income" | "wage";
   statement: string;
   source: SourceAttribution;
   /** Present when the source gives a street address. */
@@ -141,18 +166,28 @@ async function findOfficialFacts(
 }
 
 async function findTableFacts(params: LookupParams, today: string): Promise<{ claims: SourcedClaim[]; notes: string[] }> {
-  const phrase = params.occupation?.trim();
-  if (!params.needs_lookup || !phrase) return { claims: [], notes: [] };
+  const target = incomeTarget(params.monthly_housing_cost);
+  const targetClaims = target ? [incomeTargetClaim(target)] : [];
+  const phrases = [
+    ...new Set([params.occupation, ...params.skill_occupations].map((p) => p?.trim().toLowerCase()).filter((p): p is string => !!p)),
+  ].slice(0, MAX_OCCUPATION_PHRASES);
+  if (!params.needs_lookup || phrases.length === 0) return { claims: targetClaims, notes: [] };
 
   const notes: string[] = [];
   const { place, county } = await resolveLocation(params.location, notes);
   const radius = place ? clampRadius(params.radius_miles) : null;
 
-  const occupations = await findOccupations(phrase);
+  const matched = await Promise.all(phrases.map((p) => findOccupations(p)));
+  const occupations = [...new Map(matched.flat().map((o) => [o.onet_soc_code, o])).values()];
   const socCodes = occupations.map((o) => o.onet_soc_code);
-  if (occupations.length === 0) notes.push(`No occupation in the O*NET table matched "${phrase}" (unconfirmed, not proof it doesn't exist).`);
+  phrases.forEach((p, i) => {
+    if (matched[i].length === 0) notes.push(`No occupation in the O*NET table matched "${p}" (unconfirmed, not proof it doesn't exist).`);
+  });
 
-  const [programs, apprenticeships, credentials] = await Promise.all([
+  // O*NET-SOC "15-1252.00" -> OEWS SOC "15-1252".
+  const wageSocCodes = [...new Set(socCodes.map((c) => c.slice(0, 7)))];
+  const area = areaForCounty(county);
+  const [programs, apprenticeships, credentials, wageRows] = await Promise.all([
     socCodes.length
       ? searchTrainingPrograms({
           socCodes,
@@ -161,12 +196,16 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
           radiusMiles: radius,
         })
       : Promise.resolve([]),
-    searchApprenticeships({ socCodes, trade: phrase, county }),
+    searchApprenticeships({ socCodes, trade: phrases[0], county }),
     searchCredentials({ socCodes, on: today }),
+    findOccupationWages(wageSocCodes, area),
   ]);
   const licensure = licensureClaims(credentials, today);
+  const wages = localWages(wageRows, area, MAX_WAGE_CLAIMS)
+    .map((w) => wageClaim(w, target))
+    .filter((c): c is NonNullable<typeof c> => c !== null);
 
-  const field = occupations.length ? occupations.map((o) => o.title).join(", ") : `"${phrase}"`;
+  const field = occupations.length ? occupations.map((o) => o.title).join(", ") : phrases.map((p) => `"${p}"`).join(", ");
   if (socCodes.length) {
     notes.push(
       `Training program search for ${field}${place ? ` within ${radius} miles of ${place.name}, ${place.state}` : ""}: ${count(programs.length)}.`,
@@ -174,6 +213,7 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
     notes.push(
       `Licensure search for ${field} in Washington: ${count(credentials.length)}${credentials.length ? "" : " (licensure requirements and fees unconfirmed)"}.`,
     );
+    notes.push(`Washington wage search for ${field}${area === "Washington" ? " statewide" : ` in the ${area} area`}: ${count(wages.length)}.`);
   }
   notes.push(`Registered apprenticeship search for ${field}${county ? ` in ${county} County` : ""}: ${count(apprenticeships.length)}.`);
   if (apprenticeships.length === 0) {
@@ -183,6 +223,8 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
 
   const { claims, dropped } = supportedClaims(
     [
+      ...targetClaims,
+      ...wages,
       ...occupations.map(occupationClaim),
       ...programs.map((p) => programClaim(p, place)),
       ...apprenticeships.map(apprenticeshipClaim),

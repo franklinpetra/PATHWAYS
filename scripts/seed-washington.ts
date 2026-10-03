@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { createClient } from "@supabase/supabase-js";
-import { CONNECTORS, SOURCES, loadRows, makeStamp, parseDelimited, runConnector, type SourceKey } from "../lib/data/washington";
+import { CONNECTORS, SOURCES, loadRows, makeStamp, parseDelimited, runConnector, type ConnectorKey } from "../lib/data/washington";
 
 function fail(message: string): never {
   console.error(`\n${message}\n`);
@@ -29,8 +29,8 @@ const { values } = parseArgs({
   },
 });
 
-const source = values.source as SourceKey | undefined;
-if (!source || !(source in SOURCES)) fail(`--source must be one of: ${Object.keys(SOURCES).join(", ")}`);
+const source = values.source as ConnectorKey | undefined;
+if (!source || !(source in CONNECTORS)) fail(`--source must be one of: ${Object.keys(CONNECTORS).join(", ")}`);
 if (!values.file || !existsSync(values.file)) fail("--file must point to an existing CSV or TSV export");
 if (!values["source-url"] || !values["as-of"]) fail("--source-url and --as-of are required");
 

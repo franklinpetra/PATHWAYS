@@ -14,7 +14,7 @@ export interface SourceAttribution {
 /** A sourced claim an assistant reply cited as [index]. */
 export interface Citation {
   index: number;
-  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official" | "income" | "wage";
   statement: string;
   source: SourceAttribution;
 }

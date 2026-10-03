@@ -6,6 +6,7 @@ import type {
   ContextItem,
   CredentialMatch,
   Occupation,
+  OccupationWage,
   Pathway,
   Place,
   ProgressEvent,
@@ -136,6 +137,17 @@ export async function findOccupations(phrase: string, limit = 3): Promise<Occupa
     .ilike("title", `%${escapeLike(phrase.trim())}%`)
     .limit(limit);
   return unwrap<Occupation[]>(res, "occupations");
+}
+
+/** Wage estimates for these SOC codes in one OEWS area and statewide. */
+export async function findOccupationWages(socCodes: string[], areaName: string): Promise<OccupationWage[]> {
+  if (socCodes.length === 0) return [];
+  const res = await db()
+    .from("occupation_wages")
+    .select("*")
+    .in("soc_code", socCodes)
+    .in("area_name", [...new Set([areaName, "Washington"])]);
+  return unwrap<OccupationWage[]>(res, "occupation wages");
 }
 
 export async function findPlace(name: string, state = "WA"): Promise<Place | null> {
