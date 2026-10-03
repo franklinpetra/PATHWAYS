@@ -4,7 +4,7 @@ import type { Connector } from "./connectors";
 const BATCH_SIZE = 500;
 
 /** Upserts connector rows in batches. Re-running a load updates rows in place. */
-export async function loadRows<T>(client: SupabaseClient, connector: Connector<T>, rows: T[]): Promise<number> {
+export async function loadRows<T>(client: SupabaseClient, connector: Pick<Connector<T>, "table" | "conflict">, rows: T[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);

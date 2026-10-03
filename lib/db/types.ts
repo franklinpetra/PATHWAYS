@@ -200,6 +200,8 @@ export interface Apprenticeship extends SourceColumns {
   contact_phone: string | null;
   contact_email: string | null;
   contact_url: string | null;
+  starting_wage_hourly: number | null;
+  journey_wage_hourly: number | null;
 }
 
 export interface StoredMessage {

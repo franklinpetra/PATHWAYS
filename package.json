@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "seed:wa": "tsx scripts/seed-washington.ts",
+    "sync:apprenticeships": "tsx scripts/sync-apprenticeships.ts",
+    "sync:places": "tsx scripts/sync-places.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
     "load:licensure": "tsx scripts/load-licensure.ts",
     "reset-user": "tsx scripts/reset-user.ts",

@@ -35,7 +35,7 @@ export interface ConnectorResult<T> {
 type Read = ReturnType<typeof fieldReader>;
 
 export interface Connector<T> {
-  table: "apprenticeships" | "training_programs" | "occupations";
+  table: "apprenticeships" | "training_programs" | "occupations" | "places";
   /** Upsert conflict target. */
   conflict: string;
   required: Record<string, readonly string[]>;

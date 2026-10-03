@@ -175,6 +175,7 @@ function attribution(row: SourceColumns): SourceAttribution {
   };
 }
 
+const hourly = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 function occupationClaim(o: Occupation): SourcedClaim {
@@ -221,6 +222,8 @@ function apprenticeshipClaim(a: Apprenticeship): SourcedClaim {
   const parts = [
     `${a.trade} registered apprenticeship, sponsored by ${a.sponsor}, serving ${counties}.`,
     a.term_hours ? `Term: ${a.term_hours.toLocaleString("en-US")} hours.` : null,
+    a.starting_wage_hourly != null ? `Starting apprentice wage: ${hourly.format(Number(a.starting_wage_hourly))} per hour.` : null,
+    a.journey_wage_hourly != null ? `Journey-level wage: ${hourly.format(Number(a.journey_wage_hourly))} per hour.` : null,
     a.requirements ? `Requirements: ${a.requirements.replace(/\.$/, "")}.` : null,
     contact ? `Contact: ${contact}.` : null,
   ];

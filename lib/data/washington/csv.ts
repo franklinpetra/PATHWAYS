@@ -17,7 +17,7 @@ export function detectDelimiter(text: string): "," | "\t" {
   return (header.match(/\t/g)?.length ?? 0) > (header.match(/,/g)?.length ?? 0) ? "\t" : ",";
 }
 
-export function parseDelimited(text: string, delimiter = detectDelimiter(text)): ParsedFile {
+export function parseDelimited(text: string, delimiter: string = detectDelimiter(text)): ParsedFile {
   const rows: { line: number; cells: string[] }[] = [];
   let cells: string[] = [];
   let cell = "";
