@@ -12,6 +12,7 @@
     "sync:apprenticeships": "tsx scripts/sync-apprenticeships.ts",
     "sync:places": "tsx scripts/sync-places.ts",
     "sync:wages": "tsx scripts/sync-wages.ts",
+    "eval": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/eval.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
     "load:licensure": "tsx scripts/load-licensure.ts",
     "reset-user": "tsx scripts/reset-user.ts",

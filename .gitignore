@@ -11,3 +11,6 @@ supabase/.temp/
 
 # Generated access-code lists: live credentials, never commit
 test-access-codes*.csv
+
+# Multi-AI comparison runs (npm run eval)
+evals/results/
