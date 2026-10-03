@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { MessageText } from "@/components/chat/MessageText";
 import { MessageToolbar, PlaceActions } from "@/components/chat/PlaceToolbar";
@@ -37,12 +37,20 @@ interface WorkspaceProps {
   initialMessages: Message[];
 }
 
-const READINESS_LABEL: Record<Pathway["readiness_state"], string> = {
-  exploring: "Exploring",
-  evaluating: "Evaluating",
-  acting: "Acting",
-  returning: "Returning",
-};
+const WIDE = "(min-width: 1024px)";
+
+/** Whether the sidebar layout applies; null until known on the client, so the plan renders in exactly one place. */
+function useWide(): boolean | null {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(WIDE);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => null,
+  );
+}
 
 export function Workspace({ pathway, initialSteps, initialWins, initialTopics, sharedPlace, initialMessages }: WorkspaceProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -52,6 +60,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
   const [candidates, setCandidates] = useState<WinCandidate[]>([]);
   const [panelBusy, setPanelBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const wide = useWide();
   const abortRef = useRef<AbortController | null>(null);
 
   const streaming = messages.some((m) => m.status === "streaming");
@@ -144,14 +154,58 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
 
   const empty = messages.length === 0 && !sharedPlace;
 
+  // One plan, shown in the sidebar on wide screens and in a fold-out panel on phones.
+  const plan = (
+    <>
+      {notice && (
+        <p role="status" className="notice">
+          {notice}
+        </p>
+      )}
+      <NextSteps pathwayId={pathway.id} steps={steps} busy={panelBusy} onAction={runActions} />
+      <RecentWins
+        wins={wins}
+        candidates={candidates}
+        busy={panelBusy}
+        onAction={(actions) => runActions(actions)}
+        onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
+      />
+    </>
+  );
+
+  const planCount = steps.length + wins.length + candidates.length;
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-gutter pb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
+    <main className="mx-auto flex w-full max-w-6xl flex-col px-gutter pb-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-12">
       <section aria-label="Conversation" className="flex flex-col lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]">
-        <div className="pt-8 pb-6">
-          <p className="font-mono text-xs text-forest lowercase">{READINESS_LABEL[pathway.readiness_state]}</p>
-          <h1 className="display-sm mt-2">{pathway.title}</h1>
-          {pathway.current_question && <p className="mt-2 text-lg text-muted-foreground">{pathway.current_question}</p>}
+        <div className="flex items-end justify-between gap-3 pt-5 pb-4 lg:pt-8 lg:pb-5">
+          <div className="min-w-0">
+            <h1 className="font-display text-[1.6rem] leading-tight tracking-[-0.01em] lg:text-[2rem]">{pathway.title}</h1>
+            {pathway.current_question && <p className="mt-0.5 text-sm text-muted-foreground">{pathway.current_question}</p>}
+          </div>
+          {/* Phones: the plan folds into one button here instead of trailing the whole conversation. */}
+          <button
+            type="button"
+            onClick={() => setPlanOpen((o) => !o)}
+            aria-expanded={planOpen}
+            aria-controls="your-plan"
+            className={`btn btn-sm shrink-0 lg:hidden ${planOpen ? "btn-active" : "btn-secondary"}`}
+          >
+            Your plan
+            {planCount > 0 && (
+              <span className="grid size-5 place-items-center rounded-full bg-dawn text-[11px] font-semibold text-white">{planCount}</span>
+            )}
+          </button>
         </div>
+
+        <aside
+          id="your-plan"
+          aria-label="Your plan"
+          hidden={!planOpen}
+          className="mb-4 space-y-3 lg:hidden"
+        >
+          {wide === false && plan}
+        </aside>
 
         {/* An empty conversation centers the prompt and composer; once it starts, the composer docks below. */}
         <div className={empty ? "space-y-6 lg:my-auto lg:pb-24" : "contents"}>
@@ -170,20 +224,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
         </div>
       </section>
 
-      <aside aria-label="Your progress" className="mt-6 space-y-5 lg:mt-8 lg:pb-8">
-        {notice && (
-          <p role="status" className="notice">
-            {notice}
-          </p>
-        )}
-        <NextSteps pathwayId={pathway.id} steps={steps} busy={panelBusy} onAction={runActions} />
-        <RecentWins
-          wins={wins}
-          candidates={candidates}
-          busy={panelBusy}
-          onAction={(actions) => runActions(actions)}
-          onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
-        />
+      <aside aria-label="Your plan" className="hidden space-y-4 lg:block lg:pt-8 lg:pb-8">
+        {wide && plan}
       </aside>
     </main>
   );

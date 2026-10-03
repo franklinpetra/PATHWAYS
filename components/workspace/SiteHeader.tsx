@@ -4,7 +4,7 @@ import { Logo } from "@/components/brand/Logo";
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-10 h-14 border-b border-border bg-background">
+    <header className="sticky top-0 z-10 h-14 border-b border-border/70 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-gutter">
         <Link href="/" aria-label="Pathways home" className="rounded-full">
           <Logo size="sm" />

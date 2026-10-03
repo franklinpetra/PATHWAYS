@@ -26,8 +26,8 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
   return (
     <Card title="Recent wins" id="recent-wins-heading">
       {candidates.length > 0 && (
-        <div className="mb-4 rounded-2xl border border-dashed border-forest/30 bg-leaf-tint p-3">
-          <p className="text-xs font-medium text-forest">Sounds like progress. Add it?</p>
+        <div className="mb-3 rounded-2xl border border-dashed border-dawn/40 bg-dawn-tint p-3">
+          <p className="text-xs font-medium text-dawn">Sounds like progress. Add it?</p>
           <ul className="mt-2 space-y-2">
             {candidates.map((c) => (
               <li key={`${c.event_type}:${c.title}`} className="text-sm">
@@ -64,9 +64,9 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
       )}
 
       {wins.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Real-world steps you take will show up here.</p>
+        <p className="text-sm text-muted-foreground">Steps you take show up here.</p>
       ) : (
-        <ul className="space-y-3.5">
+        <ul className="space-y-2.5">
           {wins.map((win) => (
             <WinItem key={win.id} win={win} busy={busy} onAction={onAction} />
           ))}
@@ -139,7 +139,8 @@ function WinItem({ win, busy, onAction }: { win: ProgressEvent; busy: boolean; o
   }
 
   return (
-    <li className="group flex items-start gap-2">
+    <li className="group flex items-start gap-2.5">
+      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-dawn" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm leading-snug">{win.title}</p>
         {win.learning && <p className="mt-0.5 text-xs text-muted-foreground">{win.learning}</p>}

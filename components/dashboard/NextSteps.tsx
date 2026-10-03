@@ -31,9 +31,7 @@ export function NextSteps({ pathwayId, steps, busy, onAction }: NextStepsProps) 
   return (
     <Card title="Next steps" id="next-steps-heading">
       {shown.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Nothing here yet. Steps will appear as you talk things through.
-        </p>
+        <p className="text-sm text-muted-foreground">Steps appear as you talk things through.</p>
       ) : (
         <ol className="divide-y divide-border" aria-busy={busy}>
           {shown.map((step, index) => (
@@ -56,11 +54,7 @@ export function NextSteps({ pathwayId, steps, busy, onAction }: NextStepsProps) 
           ))}
         </ol>
       )}
-      {waiting > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          {waiting} more {waiting === 1 ? "step is" : "steps are"} waiting behind these.
-        </p>
-      )}
+      {waiting > 0 && <p className="mt-2 text-xs text-muted-foreground">+{waiting} more waiting</p>}
     </Card>
   );
 }
@@ -85,8 +79,8 @@ function StepItem({
   const dueId = `due-${step.id}`;
 
   return (
-    <li className="py-4 first:pt-0 last:pb-0">
-      <div className="flex gap-3">
+    <li className="py-2.5 first:pt-0 last:pb-0">
+      <div className="flex gap-2.5">
         <button
           type="button"
           disabled={disabled}
@@ -98,10 +92,9 @@ function StepItem({
         </button>
 
         <div className="min-w-0 flex-1">
-          <p className="font-medium leading-snug">{step.title}</p>
-          {step.status === "suggested" && (
-            <p className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="badge text-muted-foreground">Suggested</span>
+          <p className="text-[15px] leading-snug font-medium">{step.title}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {step.status === "suggested" && (
               <button
                 type="button"
                 disabled={disabled}
@@ -110,79 +103,78 @@ function StepItem({
               >
                 Take this on
               </button>
-            </p>
-          )}
-
-          {step.why && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Why </span>
-              {step.why}
-            </p>
-          )}
-          {step.how && (
-            <details className="mt-1.5 text-sm">
-              <summary className="cursor-pointer font-medium text-forest marker:text-forest/60">How</summary>
-              <p className="mt-1 text-muted-foreground">{step.how}</p>
-            </details>
-          )}
-
-          <div className="mt-2 flex items-center gap-2 text-sm">
-            <label htmlFor={dueId} className="font-medium">
-              Due
-            </label>
-            <input
-              id={dueId}
-              type="date"
-              value={dueDate}
-              disabled={disabled}
-              // Partially typed dates report "" mid-entry; clearing is only via the button below.
-              onChange={(e) => e.target.value && onAction({ type: "set_step_due", actionId: step.id, dueDate: e.target.value })}
-              className="field field-sm w-auto text-muted-foreground"
-              aria-describedby={dueDate ? undefined : `${dueId}-none`}
-            />
-            {dueDate ? (
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onAction({ type: "set_step_due", actionId: step.id, dueDate: null })}
-                aria-label={`Clear due date ${formatIsoDate(dueDate)}`}
-                className="btn btn-ghost btn-icon size-6"
-              >
-                <X className="size-3.5" aria-hidden />
-              </button>
-            ) : (
-              <span id={`${dueId}-none`} className="sr-only">
-                No due date
-              </span>
             )}
+            {dueDate && <span className="text-dawn">Due {formatIsoDate(dueDate)}</span>}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
-            <IconButton label={`Move up: ${step.title}`} disabled={disabled || !canMoveUp} onClick={() => onMove(-1)}>
-              <ArrowUp className="size-3.5" aria-hidden />
-            </IconButton>
-            <IconButton label={`Move down: ${step.title}`} disabled={disabled || !canMoveDown} onClick={() => onMove(1)}>
-              <ArrowDown className="size-3.5" aria-hidden />
-            </IconButton>
-            <TextButton disabled={disabled} onClick={() => onAction({ type: "postpone_step", actionId: step.id })}>
-              Not now
-            </TextButton>
-            {confirmingRemove ? (
-              <span className="flex items-center gap-1">
-                <span className="text-muted-foreground">Remove?</span>
-                <TextButton disabled={disabled} onClick={() => onAction({ type: "remove_step", actionId: step.id })}>
-                  Yes
+          <details className="group/more mt-1 text-sm">
+            <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span className="group-open/more:hidden">More</span>
+              <span className="hidden group-open/more:inline">Less</span>
+            </summary>
+            <div className="mt-2 space-y-2">
+              {step.why && <p className="text-muted-foreground">{step.why}</p>}
+              {step.how && <p className="text-muted-foreground">{step.how}</p>}
+
+              <div className="flex items-center gap-2">
+                <label htmlFor={dueId} className="text-xs font-medium">
+                  Due
+                </label>
+                <input
+                  id={dueId}
+                  type="date"
+                  value={dueDate}
+                  disabled={disabled}
+                  // Partially typed dates report "" mid-entry; clearing is only via the button below.
+                  onChange={(e) => e.target.value && onAction({ type: "set_step_due", actionId: step.id, dueDate: e.target.value })}
+                  className="field field-sm w-auto text-muted-foreground"
+                  aria-describedby={dueDate ? undefined : `${dueId}-none`}
+                />
+                {dueDate ? (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onAction({ type: "set_step_due", actionId: step.id, dueDate: null })}
+                    aria-label={`Clear due date ${formatIsoDate(dueDate)}`}
+                    className="btn btn-ghost btn-icon size-6"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                ) : (
+                  <span id={`${dueId}-none`} className="sr-only">
+                    No due date
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1 text-xs">
+                <IconButton label={`Move up: ${step.title}`} disabled={disabled || !canMoveUp} onClick={() => onMove(-1)}>
+                  <ArrowUp className="size-3.5" aria-hidden />
+                </IconButton>
+                <IconButton label={`Move down: ${step.title}`} disabled={disabled || !canMoveDown} onClick={() => onMove(1)}>
+                  <ArrowDown className="size-3.5" aria-hidden />
+                </IconButton>
+                <TextButton disabled={disabled} onClick={() => onAction({ type: "postpone_step", actionId: step.id })}>
+                  Not now
                 </TextButton>
-                <TextButton disabled={disabled} onClick={() => setConfirmingRemove(false)}>
-                  Keep
-                </TextButton>
-              </span>
-            ) : (
-              <TextButton disabled={disabled} onClick={() => setConfirmingRemove(true)}>
-                Remove
-              </TextButton>
-            )}
-          </div>
+                {confirmingRemove ? (
+                  <span className="flex items-center gap-1">
+                    <span className="text-muted-foreground">Remove?</span>
+                    <TextButton disabled={disabled} onClick={() => onAction({ type: "remove_step", actionId: step.id })}>
+                      Yes
+                    </TextButton>
+                    <TextButton disabled={disabled} onClick={() => setConfirmingRemove(false)}>
+                      Keep
+                    </TextButton>
+                  </span>
+                ) : (
+                  <TextButton disabled={disabled} onClick={() => setConfirmingRemove(true)}>
+                    Remove
+                  </TextButton>
+                )}
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </li>

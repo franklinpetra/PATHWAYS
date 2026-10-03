@@ -1,30 +1,36 @@
 @import "tailwindcss";
 
 /*
- * PATHWAYS design tokens.
- * Minimal and calm: bone background, crisp charcoal type, and two greens taken from the
- * logo, used sparingly. Each token generates utilities (bg-background, text-forest, ...).
+ * PATHWAYS design tokens: "Evergreen & Dawn".
+ * Warm paper, evergreen ink taken from the logo's road, and a dawn amber that marks
+ * progress and "you are here". Calm by default; color appears only where it means something.
+ * Each token generates utilities (bg-background, text-forest, text-dawn, ...).
  *
- * Contrast on the bone background (WCAG):
- *   foreground #16171A  16.7:1    muted-foreground #56595F  6.6:1
- *   forest     #1B6040   7.0:1    white on forest           7.5:1
- *   leaf       #6BBA16   2.3:1    -> decorative only (logo, halos, tints); never text or a lone indicator
+ * Contrast on the paper background (WCAG):
+ *   foreground #14231C  14.7:1    muted-foreground #5A645E  5.5:1
+ *   forest     #1B6040   6.8:1    white on forest           7.5:1
+ *   dawn       #A8551A   4.8:1    dawn on dawn-tint         4.5:1
+ *   leaf       #6BBA16   2.2:1    -> decorative only (logo, dots, halos); never text or a lone indicator
  */
 @theme {
-  /* Neutrals */
-  --color-background: #f7f7f5; /* bone */
-  --color-foreground: #16171a; /* charcoal */
-  --color-muted-foreground: #56595f;
-  --color-surface: #fcfcfa; /* cards and fields: a shade lighter than the background */
-  --color-subtle: #efefec; /* flat hover fill */
-  --color-border: #e3e3df;
-  --color-border-strong: #cdcdc7;
+  /* Neutrals: warm paper and evergreen ink */
+  --color-background: #f5f3ee; /* paper */
+  --color-foreground: #14231c; /* evergreen ink */
+  --color-muted-foreground: #5a645e;
+  --color-surface: #fcfbf8; /* cards and fields: a shade lighter than the paper */
+  --color-subtle: #edeae3; /* flat hover fill */
+  --color-border: #e3dfd6;
+  --color-border-strong: #cdc8bc;
 
   /* Brand greens, sampled from the logo */
   --color-leaf: #6bba16;
   --color-forest: #1b6040;
   --color-forest-deep: #144a31; /* pressed / hover on forest */
-  --color-leaf-tint: #eef5e4; /* active-state fill; charcoal and forest text both read clearly on it */
+  --color-leaf-tint: #e9f1df; /* active-state fill; ink and forest text both read clearly on it */
+
+  /* Dawn: progress, wins, and "you are here". Sparing. */
+  --color-dawn: #a8551a;
+  --color-dawn-tint: #f8ecdf;
 
   /* Semantic roles */
   --color-primary: var(--color-forest);
@@ -33,11 +39,13 @@
 
   /* Typography */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Headlines only: an editorial serif that gives the product its voice. */
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
   /* Small metadata only: badges, dates, counts. */
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Generous spacing */
-  --spacing-gutter: 1.5rem;
+  /* Spacing */
+  --spacing-gutter: 1rem;
   --spacing-section: 3rem;
 
   /* Flat: near-invisible elevation only */
@@ -78,7 +86,11 @@
   }
 
   body {
-    background-color: var(--color-background);
+    /* A faint dawn on the horizon: the only ornament, and it sits behind everything. */
+    background:
+      radial-gradient(80rem 26rem at 50% -14rem, color-mix(in srgb, var(--color-dawn) 9%, transparent), transparent 70%)
+        no-repeat,
+      var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     line-height: 1.6;
@@ -86,6 +98,12 @@
 
   ::selection {
     background-color: color-mix(in srgb, var(--color-leaf) 30%, transparent);
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --spacing-gutter: 1.5rem;
+    }
   }
 
   /* Forest ring carries the contrast; the leaf halo is the brand accent. */
@@ -156,11 +174,15 @@
     @apply inline-flex items-center rounded-full border border-border px-2 py-px font-mono text-[11px] lowercase;
   }
 
-  /* Editorial headlines: large, tight, and balanced. */
+  /* Editorial headlines in the display serif: large, tight, and balanced. */
   .display {
-    @apply text-[2.5rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance sm:text-[3.5rem];
+    @apply font-display text-[2.75rem] leading-[1] font-normal tracking-[-0.02em] text-balance sm:text-[4.25rem];
   }
   .display-sm {
-    @apply text-[1.875rem] leading-[1.1] font-semibold tracking-[-0.03em] text-balance sm:text-[2.25rem];
+    @apply font-display text-[1.75rem] leading-[1.08] font-normal tracking-[-0.015em] text-balance sm:text-[2.25rem];
+  }
+  /* Small uppercase section labels. */
+  .eyebrow {
+    @apply text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase;
   }
 }

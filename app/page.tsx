@@ -19,14 +19,16 @@ export default async function Home({ searchParams }: PageProps) {
     const next = typeof query.next === "string" ? query.next : null;
     return (
       <div className="flex min-h-dvh flex-col">
-        <header className="mx-auto w-full max-w-6xl px-gutter pt-8 sm:pt-10">
+        <header className="mx-auto w-full max-w-6xl px-gutter pt-6 sm:pt-10">
           <Logo size="lg" />
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-gutter pt-16 pb-section sm:pt-28">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-gutter pt-14 pb-section sm:pt-24">
           <div className="max-w-2xl">
-            <h1 className="display">Where do you want to go next?</h1>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Think out loud. We&apos;ll organize what you share and we&apos;ll help you map your next steps.
+            <h1 className="display">
+              Where do you want to go <em className="text-forest">next?</em>
+            </h1>
+            <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted-foreground">
+              Think out loud. We&apos;ll check the facts, do the math, and map your next steps.
             </p>
             {query.handoff === "expired" && (
               <p role="status" className="notice mt-8 max-w-xl">
@@ -37,9 +39,9 @@ export default async function Home({ searchParams }: PageProps) {
           </div>
         </main>
         <footer className="mx-auto w-full max-w-6xl px-gutter pb-10">
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Facts about programs, fees, and licenses are shown with their source and date. What Pathways remembers
-            about you is yours to review, edit, or delete at any time.
+          <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
+            Every fee, wage, and rule comes from an official Washington source, shown with its date. What Pathways
+            remembers about you is yours to review, edit, or delete.
           </p>
         </footer>
       </div>

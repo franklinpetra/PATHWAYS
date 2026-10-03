@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import { attributionWhen, formatAttribution } from "@/lib/workspace/attribution";
 import type { Citation } from "@/lib/workspace/events";
 
@@ -23,11 +24,28 @@ export function SourceList({
   open: ReadonlySet<number>;
   onToggle: (index: number, open: boolean) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   if (citations.length === 0) return null;
+  // Collapsed to one quiet line; opens on request or when a citation in the reply is tapped.
+  const isOpen = expanded || open.size > 0;
   return (
-    <section aria-label="Sources" className="mt-4 border-t border-border pt-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sources</h3>
-      <ol className="mt-2 space-y-1.5">
+    <section aria-label="Sources" className="mt-3">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={() => {
+          if (isOpen) for (const index of open) onToggle(index, false);
+          setExpanded(!isOpen);
+        }}
+        className="inline-flex items-center gap-2 rounded-full px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ShieldCheck className="size-3.5 text-forest" aria-hidden />
+        <span>
+          {citations.length} verified {citations.length === 1 ? "source" : "sources"}
+        </span>
+        <ChevronDown className={`size-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      <ol hidden={!isOpen} className="mt-2 space-y-1">
         {citations.map((c) => (
           <li key={c.index}>
             <details

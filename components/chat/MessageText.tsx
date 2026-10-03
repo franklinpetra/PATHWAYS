@@ -2,8 +2,12 @@ import { Fragment, type ReactNode } from "react";
 
 /**
  * Minimal, safe rendering for assistant text: paragraphs, bullet and numbered
- * lists, **bold**, [n] citations, and bare links. No HTML is ever interpreted.
+ * lists, tables, **bold**, [n] citations, and bare links. No HTML is ever interpreted.
  * Citations that match a known source become buttons that open its attribution.
+ *
+ * Progressive disclosure: whatever precedes the first heading is the answer and is always
+ * shown; each headed section after it collapses to its heading, so a reply reads in seconds
+ * and the detail is one tap away.
  */
 
 interface CiteProps {
@@ -49,13 +53,26 @@ function renderInline(text: string, cite: CiteProps): ReactNode[] {
   });
 }
 
-type Block = { kind: "p" | "ul" | "ol" | "h"; lines: string[] };
+type Block = { kind: "p" | "ul" | "ol" | "h" | "table"; lines: string[] };
 
 function toBlocks(text: string): Block[] {
   const blocks: Block[] = [];
   for (const raw of text.split("\n")) {
     const line = raw.trimEnd();
     if (!line.trim()) {
+      blocks.push({ kind: "p", lines: [] });
+      continue;
+    }
+    // Table rows ("| a | b |"); the "|---|---|" divider row is dropped.
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      if (/^\s*\|[\s:|-]+\|\s*$/.test(line)) continue;
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "table") last.lines.push(line.trim());
+      else blocks.push({ kind: "table", lines: [line.trim()] });
+      continue;
+    }
+    // Horizontal rules carry no content here.
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       blocks.push({ kind: "p", lines: [] });
       continue;
     }
@@ -77,42 +94,111 @@ function toBlocks(text: string): Block[] {
   return blocks.filter((b) => b.lines.length > 0);
 }
 
+const cells = (row: string) => row.replace(/^\s*\||\|\s*$/g, "").split("|").map((c) => c.trim());
+
+function BlockView({ block, cite }: { block: Block; cite: CiteProps }) {
+  switch (block.kind) {
+    case "h":
+      return <p className="font-semibold">{renderInline(block.lines[0], cite)}</p>;
+    case "table": {
+      const [head, ...rows] = block.lines.map(cells);
+      return (
+        <div className="-mx-1 overflow-x-auto px-1">
+          <table className="w-full border-collapse text-left text-[14px] leading-snug">
+            <thead>
+              <tr className="border-b border-border-strong">
+                {head.map((c, i) => (
+                  <th key={i} scope="col" className="py-1.5 pr-4 align-bottom text-xs font-semibold text-muted-foreground">
+                    {renderInline(c, cite)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className="border-b border-border last:border-0">
+                  {row.map((c, j) => (
+                    <td key={j} className={`py-1.5 pr-4 align-top ${j === 0 ? "font-medium" : "tabular-nums"}`}>
+                      {renderInline(c, cite)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    case "ul":
+    case "ol": {
+      const List = block.kind;
+      return (
+        <List className={`space-y-1.5 pl-5 ${block.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-forest/60`}>
+          {block.lines.map((line, j) => (
+            <li key={j}>{renderInline(line, cite)}</li>
+          ))}
+        </List>
+      );
+    }
+    default:
+      return (
+        <p>
+          {block.lines.map((line, j) => (
+            <Fragment key={j}>
+              {j > 0 && <br />}
+              {renderInline(line, cite)}
+            </Fragment>
+          ))}
+        </p>
+      );
+  }
+}
+
+interface Section {
+  heading: string | null;
+  blocks: Block[];
+}
+
+/** The lead (before any heading), then one section per heading. */
+function toSections(blocks: Block[]): Section[] {
+  const sections: Section[] = [{ heading: null, blocks: [] }];
+  for (const block of blocks) {
+    if (block.kind === "h") sections.push({ heading: block.lines[0], blocks: [] });
+    else sections[sections.length - 1].blocks.push(block);
+  }
+  return sections.filter((s) => s.heading !== null || s.blocks.length > 0);
+}
+
 export function MessageText({ text, citable, onCite }: { text: string } & CiteProps) {
   const cite = { citable, onCite };
+  const sections = toSections(toBlocks(text));
+  // With no lead paragraph, the first section is the answer: keep it open.
+  const leadIndex = sections[0]?.heading === null ? 0 : -1;
   return (
     <div className="space-y-3">
-      {toBlocks(text).map((block, i) => {
-        switch (block.kind) {
-          case "h":
-            return (
-              <p key={i} className="font-semibold">
-                {renderInline(block.lines[0], cite)}
-              </p>
-            );
-          case "ul":
-          case "ol": {
-            const List = block.kind;
-            return (
-              <List key={i} className={`space-y-1.5 pl-5 ${block.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-forest/60`}>
-                {block.lines.map((line, j) => (
-                  <li key={j}>{renderInline(line, cite)}</li>
-                ))}
-              </List>
-            );
-          }
-          default:
-            return (
-              <p key={i}>
-                {block.lines.map((line, j) => (
-                  <Fragment key={j}>
-                    {j > 0 && <br />}
-                    {renderInline(line, cite)}
-                  </Fragment>
-                ))}
-              </p>
-            );
-        }
-      })}
+      {sections.map((section, i) =>
+        section.heading === null ? (
+          section.blocks.map((block, j) => <BlockView key={`${i}-${j}`} block={block} cite={cite} />)
+        ) : (
+          <details
+            key={i}
+            open={leadIndex === -1 && i === 0 ? true : undefined}
+            className="group rounded-2xl border border-border bg-surface/70 open:bg-surface"
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 flex-1">{renderInline(section.heading, cite)}</span>
+              <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">
+                +
+              </span>
+            </summary>
+            <div className="space-y-3 px-4 pt-0.5 pb-4">
+              {section.blocks.map((block, j) => (
+                <BlockView key={j} block={block} cite={cite} />
+              ))}
+            </div>
+          </details>
+        ),
+      )}
     </div>
   );
 }
