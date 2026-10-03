@@ -41,11 +41,12 @@ import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
  */
 
 const DEFAULT_RADIUS_MILES = 25;
-const OFFICIAL_SEARCH_TIMEOUT_MS = 20_000;
+const OFFICIAL_SEARCH_TIMEOUT_MS = 25_000;
+const MAX_OFFICIAL_QUERIES = 2;
 const OFFICIAL_SEARCH_RESULTS = 8;
 const MAX_RADIUS_MILES = 100;
 
-const MAX_OCCUPATION_PHRASES = 4;
+const MAX_OCCUPATION_PHRASES = 6;
 const MAX_WAGE_CLAIMS = 6;
 
 const lookupParamsSchema = z.object({
@@ -54,7 +55,11 @@ const lookupParamsSchema = z.object({
     .describe(
       "True if answering well needs programs, apprenticeships, wages, or occupation data: they name a field, describe skills or experience, ask what work fits or pays most, or need income.",
     ),
-  occupation: z.string().nullable().describe("Occupation, trade, or field they name, in plain words, e.g. 'electrician'."),
+  occupations: z
+    .array(z.string())
+    .describe(
+      "Every occupation they name, plus each rung on the path they describe from entry job to goal, in plain words, e.g. 'pharmacy job now, pharmacist later' -> ['pharmacy aides', 'pharmacy technicians', 'pharmacists']. Up to 4. Empty if none.",
+    ),
   skill_occupations: z
     .array(z.string())
     .describe(
@@ -67,13 +72,17 @@ const lookupParamsSchema = z.object({
   financial_urgency: z
     .boolean()
     .describe("True if they say they urgently need money, are at risk of losing housing, or can't cover basics."),
+  fast_hire_occupations: z
+    .array(z.string())
+    .describe(
+      "Only when they need work or income soon without naming a field: up to 3 widely hiring occupations that fit what they've said, e.g. ['construction laborers', 'warehouse workers', 'cooks']. Empty otherwise.",
+    ),
   location: z.string().nullable().describe("City or county name only, e.g. 'Tacoma' or 'Pierce County'. Null if not stated."),
   radius_miles: z.number().nullable().describe("Only if the person stated a distance."),
-  official_query: z
-    .string()
-    .nullable()
+  official_queries: z
+    .array(z.string())
     .describe(
-      "A web search query for official sources on the rules, requirements, steps, fees, permits, licenses, benefits, or program prerequisites this message depends on, e.g. 'Washington pharmacy technician license requirements', 'Tacoma food truck permit', 'Washington emergency cash and rent assistance for families' when they urgently need money, or 'Washington business license and self-employment tax for freelancers' when they could sell services. Null if the message needs no such facts.",
+      "Up to 2 web search queries for official sources on the rules, requirements, rights, steps, fees, permits, licenses, benefits, or program prerequisites this message depends on, e.g. ['Washington pharmacy assistant and technician license requirements', 'Washington pharmacy technician administer vaccines'], ['Tacoma food truck permit'], ['Washington emergency cash and rent assistance for families'] when they urgently need money, ['Washington Fair Chance Act criminal record hiring', 'Washington certificate of restoration of opportunity'] for someone with a record, or ['Washington business license and self-employment tax for freelancers'] when they could sell services. Empty if the message needs no such facts.",
     ),
 });
 
@@ -124,15 +133,18 @@ export async function findFacts(input: RetrievalInput): Promise<FactFindings> {
   });
 
   const today = new Date().toISOString().slice(0, 10);
-  const official = params.official_query?.trim()
-    ? findOfficialFacts(params.official_query.trim(), today, input.signal)
-    : Promise.resolve({ claims: [], notes: [] });
-  const tables = findTableFacts(params, today);
-  const [fromTables, fromOfficial] = await Promise.all([tables, official]);
+  const queries = [...new Set(params.official_queries.map((q) => q.trim()).filter(Boolean))].slice(0, MAX_OFFICIAL_QUERIES);
+  const [fromTables, ...fromOfficial] = await Promise.all([
+    findTableFacts(params, today),
+    ...queries.map((q) => findOfficialFacts(q, today, input.signal)),
+  ]);
+  // Two searches can verify the same passage; keep it once.
+  const seen = new Set<string>();
+  const official = fromOfficial.flatMap((f) => f.claims).filter((c) => !seen.has(c.statement) && seen.add(c.statement));
   return {
     params,
-    claims: [...fromTables.claims, ...fromOfficial.claims],
-    notes: [...fromTables.notes, ...fromOfficial.notes],
+    claims: [...fromTables.claims, ...official],
+    notes: [...fromTables.notes, ...fromOfficial.flatMap((f) => f.notes)],
   };
 }
 
@@ -171,7 +183,11 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
   const lawClaims = params.needs_lookup || params.financial_urgency ? [payTransparencyClaim()] : [];
   const targetClaims = [...(target ? [incomeTargetClaim(target)] : []), ...lawClaims];
   const phrases = [
-    ...new Set([params.occupation, ...params.skill_occupations].map((p) => p?.trim().toLowerCase()).filter((p): p is string => !!p)),
+    ...new Set(
+      [...params.occupations, ...params.skill_occupations, ...params.fast_hire_occupations]
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   ].slice(0, MAX_OCCUPATION_PHRASES);
   if (!params.needs_lookup || phrases.length === 0) return { claims: targetClaims, notes: [] };
 
