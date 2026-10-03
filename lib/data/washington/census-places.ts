@@ -8,8 +8,13 @@ import { normalizeCounty, parseCoordinate } from "./fields";
  * excludes programs serving the other part of it.
  */
 
-export const GAZETTEER_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_gaz_place_53.txt";
-export const PLACE_BY_COUNTY_URL =
+/** The Census Bureau's Washington place Gazetteer for a year (published annually). */
+export function gazetteerUrl(year: number): string {
+  return `https://www2.census.gov/geo/docs/maps-data/data/gazetteer/${year}_Gazetteer/${year}_gaz_place_53.txt`;
+}
+
+/** Place-to-county relationships from the 2020 Census (updated each decennial census). */
+export const placeByCountyUrl =
   "https://www2.census.gov/geo/docs/reference/codes2020/place_by_cou/st53_wa_place_by_county2020.txt";
 
 export interface PlaceRow {

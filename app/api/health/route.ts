@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { resolveModels } from "@/lib/ai/openrouter";
+import { SYNC_SOURCES, type SyncSource } from "@/lib/data/washington/sync";
 import { db } from "@/lib/db/supabase";
 
 export const runtime = "nodejs";
 
 /**
- * Pre-demo health check: the configured models exist on OpenRouter, and the Washington
- * source tables are loaded and current. Reports only names, counts, and dates, never secrets.
+ * Pre-demo health check: the configured models exist on OpenRouter, the Washington source
+ * tables are loaded and current, and each source's latest scheduled refresh succeeded.
+ * Reports only names, counts, and dates, never secrets.
  * GET /api/health -> 200 when everything passes, 503 otherwise.
  */
 
@@ -47,6 +49,25 @@ async function tableCheck(table: string, staleAfterDays?: number): Promise<Check
   return { name: table, ok: !stale, detail: `${count} rows, as of ${asOf ?? "unknown"}${stale ? ` (stale: refresh with npm run sync)` : ""}` };
 }
 
+/** The latest refresh of a source. No run yet is fine (data may have been loaded before scheduling). */
+async function syncCheck(source: SyncSource): Promise<Check> {
+  const { data, error } = await db()
+    .from("data_sync_runs")
+    .select("trigger, started_at, finished_at, ok, rows_written, message")
+    .eq("source", source)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const name = `sync:${source}`;
+  if (error) return { name, ok: false, detail: error.message };
+  if (!data) return { name, ok: true, detail: "no refresh recorded yet" };
+  const when = `${data.trigger} run ${String(data.started_at).slice(0, 16).replace("T", " ")} UTC`;
+  if (data.ok === null) return { name, ok: true, detail: `${when}, still running or interrupted` };
+  return data.ok
+    ? { name, ok: true, detail: `${when}: ${data.rows_written ?? 0} rows written` }
+    : { name, ok: false, detail: `${when} FAILED: ${String(data.message ?? "").slice(0, 300)}` };
+}
+
 export async function GET() {
   const results = await Promise.allSettled([
     modelChecks(),
@@ -55,6 +76,7 @@ export async function GET() {
     tableCheck("places"),
     tableCheck("occupations"),
     tableCheck("credentials"),
+    ...SYNC_SOURCES.map(syncCheck),
   ]);
   const checks = results.flatMap((r): Check[] =>
     r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : [r.value]) : [{ name: "check", ok: false, detail: String(r.reason) }],

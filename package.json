@@ -9,9 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "seed:wa": "tsx scripts/seed-washington.ts",
-    "sync:apprenticeships": "tsx scripts/sync-apprenticeships.ts",
-    "sync:places": "tsx scripts/sync-places.ts",
-    "sync:wages": "tsx scripts/sync-wages.ts",
+    "sync": "tsx scripts/sync.ts",
     "eval": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/eval.ts",
     "create-user": "NODE_OPTIONS=--conditions=react-server tsx scripts/create-user.ts",
     "load:licensure": "tsx scripts/load-licensure.ts",
@@ -27,6 +25,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "server-only": "^0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.1.0"
   },
   "devDependencies": {
@@ -38,7 +37,6 @@
     "tailwindcss": "^4.1.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.0",
-    "vitest": "^5.0.3",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "vitest": "^5.0.3"
   }
 }
