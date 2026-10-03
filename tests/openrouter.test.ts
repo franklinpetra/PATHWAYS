@@ -86,3 +86,49 @@ describe("generateStructured", () => {
     ).rejects.toBeInstanceOf(StructuredOutputError);
   });
 });
+
+describe("model fallbacks", () => {
+  afterEach(() => {
+    delete process.env.PATHWAYS_CHAT_FALLBACK_MODELS;
+    vi.restoreAllMocks();
+  });
+
+  it("sends the configured model first, then fallbacks, for OpenRouter to route around outages", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => sseResponse(["data: [DONE]\n\n"]));
+    vi.stubGlobal("fetch", fetchMock);
+    process.env.PATHWAYS_CHAT_FALLBACK_MODELS = "backup-a, backup-b";
+    await collect(streamChat([{ role: "user", content: "hi" }]));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toMatchObject({
+      model: "chat-model",
+      models: ["chat-model", "backup-a", "backup-b"],
+    });
+  });
+
+  it("retries without a model OpenRouter rejects as invalid, and logs it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
+      JSON.parse(String(init.body)).model === "structured-model"
+        ? Response.json({ error: { message: "structured-model is not a valid model ID", code: 400 } }, { status: 400 })
+        : jsonResponse('{"answer":"ok"}'),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const schema = z.object({ answer: z.string() });
+    expect(await generateStructured({ name: "t", schema, messages: [{ role: "user", content: "?" }] })).toEqual({ answer: "ok" });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1].body)).model).toBe("anthropic/claude-haiku-4.5");
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('model "structured-model" was rejected'));
+  });
+
+  it("uses an explicit model override alone", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => sseResponse(["data: [DONE]\n\n"]));
+    vi.stubGlobal("fetch", fetchMock);
+    await collect(streamChat([{ role: "user", content: "hi" }], { model: "judge" }));
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body.model).toBe("judge");
+    expect(body.models).toBeUndefined();
+  });
+
+  it("does not retry other errors", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { message: "rate limited" } }, { status: 429 })));
+    await expect(collect(streamChat([{ role: "user", content: "hi" }]))).rejects.toMatchObject({ status: 429 });
+  });
+});

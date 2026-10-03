@@ -10,9 +10,15 @@ import { z } from "zod";
  *   application's state-transition layer before anything touches the database.
  *
  * Environment:
- *   OPENROUTER_API_KEY          required
- *   PATHWAYS_CHAT_MODEL         default model for streamChat
- *   PATHWAYS_STRUCTURED_MODEL   default model for generateStructured
+ *   OPENROUTER_API_KEY                    required
+ *   PATHWAYS_CHAT_MODEL                   default model for streamChat
+ *   PATHWAYS_STRUCTURED_MODEL             default model for generateStructured
+ *   PATHWAYS_CHAT_FALLBACK_MODELS         optional, comma-separated; replaces the default chat fallbacks
+ *   PATHWAYS_STRUCTURED_FALLBACK_MODELS   optional, comma-separated; replaces the default structured fallbacks
+ *
+ * Fallbacks keep the conversation working when a model is down, rate limited, or misconfigured.
+ * OpenRouter tries them on provider errors; an invalid model ID (which OpenRouter rejects before
+ * routing) is retried here with the next model and logged so the setting gets fixed.
  */
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -61,8 +67,44 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function resolveModel(override: string | undefined, envName: string): string {
-  return override ?? requireEnv(envName);
+const DEFAULT_FALLBACKS = {
+  PATHWAYS_CHAT_MODEL: ["anthropic/claude-sonnet-5.5"],
+  PATHWAYS_STRUCTURED_MODEL: ["anthropic/claude-haiku-4.5"],
+} as const;
+
+type ModelEnv = keyof typeof DEFAULT_FALLBACKS;
+
+/** The configured model, then its fallbacks. An explicit override is used alone. */
+export function resolveModels(override: string | undefined, envName: ModelEnv): string[] {
+  if (override) return [override];
+  const configured = process.env[envName]?.trim();
+  const fallbackEnv = process.env[envName.replace("_MODEL", "_FALLBACK_MODELS")];
+  const fallbacks = fallbackEnv ? fallbackEnv.split(",").map((m) => m.trim()) : [...DEFAULT_FALLBACKS[envName]];
+  const models = [...new Set([configured, ...fallbacks].filter((m): m is string => !!m))];
+  if (models.length === 0) throw new OpenRouterError(`Missing required environment variable ${envName}`);
+  if (!configured) console.error(`[openrouter] ${envName} is not set; using fallback ${models[0]}`);
+  return models;
+}
+
+function isInvalidModel(err: unknown): boolean {
+  return err instanceof OpenRouterError && err.status === 400 && /not a valid model/i.test(err.message);
+}
+
+/** Posts with the model list, dropping a model OpenRouter rejects as invalid and retrying with the rest. */
+async function postWithFallback(
+  models: string[],
+  body: (models: string[]) => Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<Response> {
+  for (let i = 0; ; i++) {
+    const remaining = models.slice(i);
+    try {
+      return await post(body(remaining), signal);
+    } catch (err) {
+      if (!isInvalidModel(err) || remaining.length < 2) throw err;
+      console.error(`[openrouter] model "${remaining[0]}" was rejected (${(err as Error).message}); falling back to "${remaining[1]}"`);
+    }
+  }
 }
 
 async function post(body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
@@ -93,9 +135,10 @@ async function post(body: Record<string, unknown>, signal?: AbortSignal): Promis
   return res;
 }
 
-function baseBody(model: string, messages: ChatMessage[], opts: RequestOptions) {
+function baseBody(models: string[], messages: ChatMessage[], opts: RequestOptions) {
   return {
-    model,
+    model: models[0],
+    ...(models.length > 1 && { models }),
     messages,
     ...(opts.temperature !== undefined && { temperature: opts.temperature }),
     ...(opts.maxTokens !== undefined && { max_tokens: opts.maxTokens }),
@@ -116,8 +159,8 @@ export async function* streamChat(
   messages: ChatMessage[],
   opts: RequestOptions = {},
 ): AsyncGenerator<string, void, undefined> {
-  const model = resolveModel(opts.model, "PATHWAYS_CHAT_MODEL");
-  const res = await post({ ...baseBody(model, messages, opts), stream: true }, opts.signal);
+  const models = resolveModels(opts.model, "PATHWAYS_CHAT_MODEL");
+  const res = await postWithFallback(models, (m) => ({ ...baseBody(m, messages, opts), stream: true }), opts.signal);
   if (!res.body) throw new OpenRouterError("OpenRouter returned an empty stream");
 
   const reader = res.body.getReader();
@@ -242,12 +285,13 @@ async function requestStructured<T extends z.ZodType>(
   req: StructuredRequest<T>,
   extra: Record<string, unknown> = {},
 ): Promise<{ data: z.infer<T>; message: { annotations?: unknown } | undefined }> {
-  const model = resolveModel(req.model, "PATHWAYS_STRUCTURED_MODEL");
+  const models = resolveModels(req.model, "PATHWAYS_STRUCTURED_MODEL");
   const { $schema: _, ...jsonSchema } = z.toJSONSchema(req.schema) as Record<string, unknown>;
 
-  const res = await post(
-    {
-      ...baseBody(model, req.messages, req),
+  const res = await postWithFallback(
+    models,
+    (m) => ({
+      ...baseBody(m, req.messages, req),
       ...extra,
       response_format: {
         type: "json_schema",
@@ -260,7 +304,7 @@ async function requestStructured<T extends z.ZodType>(
       },
       // Only route to providers that honor response_format.
       provider: { require_parameters: true },
-    },
+    }),
     req.signal,
   );
 

@@ -274,9 +274,7 @@ function AssistantMessage({ message: m, pathwayId }: { message: Message; pathway
       {m.content ? (
         <MessageText text={m.content} citable={citable} onCite={showSource} />
       ) : (
-        <p className="text-muted-foreground" aria-label="Thinking">
-          <span className="inline-block animate-pulse">Thinking…</span>
-        </p>
+        <Pending />
       )}
       {m.interrupted && <p className="mt-2 text-xs text-muted-foreground">This reply was cut short.</p>}
       {(m.unverifiedFigures?.length ?? 0) > 0 && (
@@ -293,5 +291,27 @@ function AssistantMessage({ message: m, pathwayId }: { message: Message; pathway
       {m.status === "done" && <MessageToolbar text={m.content} verified={m.places} pathwayId={pathwayId} />}
       {m.status !== "streaming" && <SourceList messageId={m.id} citations={citations} open={openSources} onToggle={toggle} />}
     </article>
+  );
+}
+
+/** Waiting copy that advances while sources are looked up, so a longer wait never looks frozen. */
+const PENDING_STAGES = [
+  { after: 0, text: "Thinking…" },
+  { after: 3, text: "Looking into this for Washington…" },
+  { after: 12, text: "Checking the details…" },
+  { after: 22, text: "Putting your plan together…" },
+] as const;
+
+function Pending() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const stage = PENDING_STAGES.findLast((s) => seconds >= s.after) ?? PENDING_STAGES[0];
+  return (
+    <p className="text-muted-foreground" role="status" aria-live="polite">
+      <span className="inline-block animate-pulse">{stage.text}</span>
+    </p>
   );
 }
