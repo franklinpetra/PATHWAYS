@@ -15,7 +15,7 @@ import {
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
 import { supportedClaims } from "./grounding";
-import { incomeTarget, incomeTargetClaim, localWages, wageClaim } from "./income";
+import { incomeGapClaim, incomeTarget, incomeTargetClaim, localWages, payTransparencyClaim, wageClaim } from "./income";
 import { OFFICIAL_FACTS_PROMPT, OFFICIAL_SOURCES, officialFactsSchema, verifyOfficialFacts, type OfficialClaim } from "./official-sources";
 import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
 
@@ -167,7 +167,9 @@ async function findOfficialFacts(
 
 async function findTableFacts(params: LookupParams, today: string): Promise<{ claims: SourcedClaim[]; notes: string[] }> {
   const target = incomeTarget(params.monthly_housing_cost);
-  const targetClaims = target ? [incomeTargetClaim(target)] : [];
+  // Anyone looking for work or income can compare Washington postings by their required pay ranges.
+  const lawClaims = params.needs_lookup || params.financial_urgency ? [payTransparencyClaim()] : [];
+  const targetClaims = [...(target ? [incomeTargetClaim(target)] : []), ...lawClaims];
   const phrases = [
     ...new Set([params.occupation, ...params.skill_occupations].map((p) => p?.trim().toLowerCase()).filter((p): p is string => !!p)),
   ].slice(0, MAX_OCCUPATION_PHRASES);
@@ -201,9 +203,9 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
     findOccupationWages(wageSocCodes, area),
   ]);
   const licensure = licensureClaims(credentials, today);
-  const wages = localWages(wageRows, area, MAX_WAGE_CLAIMS)
-    .map((w) => wageClaim(w, target))
-    .filter((c): c is NonNullable<typeof c> => c !== null);
+  const localRows = localWages(wageRows, area, MAX_WAGE_CLAIMS);
+  const gap = target ? incomeGapClaim(target, localRows) : null;
+  const wages = [...localRows.map((w) => wageClaim(w, target)), gap].filter((c): c is NonNullable<typeof c> => c !== null);
 
   const field = occupations.length ? occupations.map((o) => o.title).join(", ") : phrases.map((p) => `"${p}"`).join(", ");
   if (socCodes.length) {

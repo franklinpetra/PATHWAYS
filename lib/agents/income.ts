@@ -9,6 +9,10 @@ import type { SourceAttribution } from "@/lib/workspace/events";
  *    households paying more than 30% of income for housing are cost burdened.
  *  - Washington wages for an occupation, annualized the way ESD does (hourly x 2,080),
  *    and compared with that target.
+ *  - When no occupation's median reaches the target, the remaining gap per year and month,
+ *    and the side-work hours at the best occupation's median wage that would close it.
+ *  - Washington's pay transparency law, quoted from the statute, so postings can be
+ *    compared by their required pay ranges.
  */
 
 /** HUD: cost-burdened households pay more than 30 percent of their income for housing. */
@@ -64,6 +68,60 @@ export function incomeTargetClaim(target: IncomeTarget): IncomeClaim {
 }
 
 const annualize = (hourly: number) => Math.round(hourly * FULL_TIME_HOURS);
+
+/**
+ * When even the best-paying occupation found has a median below the target: the gap, and how
+ * many hours a month of paid side work at that occupation's median wage would close it.
+ */
+export function incomeGapClaim(target: IncomeTarget, wages: OccupationWage[]): IncomeClaim | null {
+  const withMedian = wages.filter((w) => w.median_hourly != null);
+  if (withMedian.length === 0) return null;
+  const best = withMedian.reduce((a, b) => (Number(b.median_hourly) > Number(a.median_hourly) ? b : a));
+  const hourly = Number(best.median_hourly);
+  const annual = annualize(hourly);
+  if (annual >= target.annual) return null;
+  const gap = target.annual - annual;
+  const monthly = Math.ceil(gap / 12);
+  const hours = Math.ceil(monthly / hourly);
+  return {
+    id: "income:gap",
+    kind: "income",
+    statement:
+      `The highest median wage found, ${best.title} at ${dollars.format(annual)}/year, leaves ${dollars.format(gap)}/year ` +
+      `(${dollars.format(monthly)}/month) to reach the ${dollars.format(target.annual)}/year target. ` +
+      `At that occupation's median of ${cents.format(hourly)}/hour, closing it takes about ${hours} hours a month of paid side work, ` +
+      `or a second household income of at least ${dollars.format(gap)}/year.`,
+    source: {
+      name: best.source_name,
+      observationPeriod: best.observation_period,
+      asOf: best.source_as_of,
+      verificationAuthority: best.verification_authority,
+      url: best.source_url,
+    },
+  };
+}
+
+/** RCW 49.58.110, as read on the Legislature's site. */
+export const PAY_TRANSPARENCY_CHECKED = "2026-10-02";
+
+export function payTransparencyClaim(): IncomeClaim {
+  return {
+    id: "law:rcw-49.58.110",
+    kind: "income",
+    statement:
+      "Washington's pay transparency law requires employers with 15 or more employees to list the wage scale or salary range (or the fixed wage) " +
+      "and a general description of benefits in every job posting, and to give an employee offered a promotion or internal transfer the new " +
+      'position\'s range on request. (Source text: "The employer must disclose in each posting for each job opening: (i) The wage scale or salary range"; ' +
+      '"This section only applies to employers with 15 or more employees.")',
+    source: {
+      name: "RCW 49.58.110: Disclosure of wage or salary range by employer",
+      observationPeriod: null,
+      asOf: PAY_TRANSPARENCY_CHECKED,
+      verificationAuthority: "Washington State Legislature",
+      url: "https://app.leg.wa.gov/RCW/default.aspx?cite=49.58.110",
+    },
+  };
+}
 
 /** One occupation's Washington wages, annualized, and compared with the income target if there is one. */
 export function wageClaim(w: OccupationWage, target: IncomeTarget | null): IncomeClaim | null {

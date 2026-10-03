@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { incomeTarget, incomeTargetClaim, localWages, wageClaim } from "@/lib/agents/income";
+import { incomeGapClaim, incomeTarget, incomeTargetClaim, localWages, payTransparencyClaim, wageClaim } from "@/lib/agents/income";
 import { findUnsupportedFigures } from "@/lib/agents/grounding";
 import { areaForCounty, parseEsdWages } from "@/lib/data/washington/esd-wages";
 import { makeStamp } from "@/lib/data/washington/sources";
@@ -119,5 +119,31 @@ describe("ESD wages", () => {
     expect(areaForCounty("Spokane")).toBe("Spokane-Spokane Valley, WA");
     expect(areaForCounty("Pierce")).toBe("Washington");
     expect(areaForCounty(null)).toBe("Washington");
+  });
+});
+
+describe("incomeGapClaim", () => {
+  it("states the gap and the side-work hours at the best median wage", () => {
+    const target = incomeTarget(5000)!;
+    const claim = incomeGapClaim(target, [wage({ title: "Web Developers", median_hourly: 64.47 }), wage({ median_hourly: 82.31 })])!;
+    // $200,000 - $171,205 = $28,795/year = $2,400/month (rounded up); $2,400 / $82.31 = 29.2 -> 30 hours.
+    expect(claim.statement).toBe(
+      "The highest median wage found, Software Developers at $171,205/year, leaves $28,795/year ($2,400/month) to reach the $200,000/year target. " +
+        "At that occupation's median of $82.31/hour, closing it takes about 30 hours a month of paid side work, or a second household income of at least $28,795/year.",
+    );
+    expect(findUnsupportedFigures("You'd still need $2,400/month, about 30 hours at $82.31.", [claim])).toEqual([]);
+  });
+
+  it("is absent when a median already meets the target or no median is published", () => {
+    expect(incomeGapClaim(incomeTarget(3000)!, [wage()])).toBeNull();
+    expect(incomeGapClaim(incomeTarget(5000)!, [wage({ median_hourly: null })])).toBeNull();
+  });
+});
+
+describe("payTransparencyClaim", () => {
+  it("quotes RCW 49.58.110 from the Legislature", () => {
+    const claim = payTransparencyClaim();
+    expect(claim.statement).toContain('"This section only applies to employers with 15 or more employees."');
+    expect(claim.source).toMatchObject({ verificationAuthority: "Washington State Legislature", url: "https://app.leg.wa.gov/RCW/default.aspx?cite=49.58.110" });
   });
 });
