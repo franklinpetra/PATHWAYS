@@ -288,7 +288,7 @@ function Thread({
       {messages.map((m) =>
         m.role === "user" ? (
           <div key={m.id} className="flex justify-end">
-            <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-foreground px-4 py-2.5 text-[15px] leading-relaxed text-background">
+            <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-person px-4 py-2.5 text-[15px] leading-relaxed text-white">
               {m.content}
             </p>
           </div>

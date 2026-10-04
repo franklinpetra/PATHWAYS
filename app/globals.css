@@ -28,6 +28,9 @@
   --color-forest-deep: #144a31; /* pressed / hover on forest */
   --color-leaf-tint: #e9f1df; /* active-state fill; ink and forest text both read clearly on it */
 
+  /* The person's own messages: a moss slate, quieter than ink (white on it is 7.7:1). */
+  --color-person: #4a564f;
+
   /* Dawn: progress, wins, and "you are here". Sparing. */
   --color-dawn: #a8551a;
   --color-dawn-tint: #f8ecdf;

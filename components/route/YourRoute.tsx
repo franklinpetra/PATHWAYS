@@ -56,7 +56,7 @@ export function YourRoute({ pathwayId, route, busy, onAction }: YourRouteProps) 
 
       <ol
         ref={listRef}
-        className="relative -mx-gutter flex items-start overflow-x-auto px-gutter pt-3 pb-1 [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none]"
+        className="relative -mx-gutter flex items-start overflow-x-auto overflow-y-hidden px-gutter pt-3 pb-1 [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none] lg:overflow-visible [&::-webkit-scrollbar]:hidden"
       >
         {stops.map((stop, i) => (
           <Fragment key={`${i}-${stop.label}`}>
