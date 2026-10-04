@@ -95,6 +95,7 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
     return (
       <RouteEditor
         base={(editing === "confirmed" ? confirmed : suggested)!}
+        here={editing === "confirmed" ? (route?.position ?? 0) : 0}
         busy={busy}
         onCancel={() => setEditing(null)}
         onSave={(next) => {
@@ -156,8 +157,8 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
               <Stop
                 stop={stop}
                 state={showSuggestion ? "suggested" : i < position ? "passed" : i === position ? "here" : "ahead"}
-                disabled={busy || showSuggestion || i === position}
-                onSelect={() => setMarking(i)}
+                disabled={busy}
+                onSelect={() => setMarking(marking === i ? null : i)}
               />
             </Fragment>
           ))}
@@ -223,27 +224,32 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
             {confirmed ? "Keep mine" : "Not now"}
           </button>
         </div>
-      ) : marking !== null && stops ? (
-        <p className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-          <span className="text-muted-foreground">
-            You&apos;re at <span className="font-medium text-foreground">{stops[marking].label}</span> now?
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              onAction([{ type: "set_route_position", pathwayId, position: marking }]);
-              setMarking(null);
-            }}
-            className="btn btn-active btn-sm"
-          >
-            Yes
-          </button>
-          <button type="button" onClick={() => setMarking(null)} className="btn btn-ghost btn-sm">
-            Cancel
-          </button>
-        </p>
       ) : null}
+
+      {marking !== null && stops?.[marking] && (
+        <div role="group" aria-label={stops[marking].label} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-surface px-3 py-2 text-sm">
+          <span className="font-medium">{stops[marking].label}</span>
+          <span className="min-w-0 flex-1 text-muted-foreground">
+            {stops[marking].note ?? (confirmed && !showSuggestion ? "No note yet. Use the pencil to say what this stop means to you." : "")}
+          </span>
+          {!showSuggestion && marking !== position && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                onAction([{ type: "set_route_position", pathwayId, position: marking }]);
+                setMarking(null);
+              }}
+              className="btn btn-active btn-sm"
+            >
+              I&apos;m here now
+            </button>
+          )}
+          <button type="button" onClick={() => setMarking(null)} aria-label="Close" className="btn btn-ghost btn-icon size-7">
+            <X className="size-3.5" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {showList && (
         <div className="pt-2">
@@ -275,11 +281,13 @@ function Stop({ stop, state, disabled, onSelect }: { stop: RouteStop; state: Sto
         disabled={disabled}
         onClick={onSelect}
         aria-current={state === "here" ? "step" : undefined}
-        aria-label={`${stop.label}${state === "here" ? ", you are here" : state === "passed" ? ", reached" : ""}${disabled ? "" : ". Mark as where you are now"}`}
+        aria-label={`${stop.label}${state === "here" ? ", you are here" : state === "passed" ? ", reached" : ""}${stop.note ? `. Note: ${stop.note}` : ""}`}
         className="group flex flex-col items-center rounded-xl px-1 disabled:cursor-default"
       >
         <span className={`relative z-10 size-3.5 rounded-full border-2 transition-transform group-enabled:group-hover:scale-125 ${dot}`} aria-hidden />
-        <span className={`mt-1.5 text-xs leading-tight ${state === "here" ? "font-semibold text-foreground" : "font-medium text-foreground/85"}`}>
+        <span
+          className={`mt-1.5 text-xs leading-tight ${state === "here" ? "font-semibold text-foreground" : "font-medium text-foreground/85"} ${stop.note ? "underline decoration-dawn/50 decoration-dotted underline-offset-[3px]" : ""}`}
+        >
           {stop.label}
         </span>
       </button>
@@ -435,19 +443,22 @@ function StepDetail({
 /** The person's own version of the route: rename, remove, or add stops. */
 function RouteEditor({
   base,
+  here,
   busy,
   onCancel,
   onSave,
 }: {
   base: RouteStop[];
+  /** The stop the person is at, marked with the dawn dot. */
+  here: number;
   busy: boolean;
   onCancel: () => void;
-  onSave: (stops: { label: string; from: number | null }[]) => void;
+  onSave: (stops: { label: string; from: number | null; note: string | null }[]) => void;
 }) {
-  const [stops, setStops] = useState(base.map((s, i) => ({ label: s.label, from: i as number | null, key: `s${i}` })));
+  const [stops, setStops] = useState(base.map((s, i) => ({ label: s.label, note: s.note ?? "", from: i as number | null, key: `s${i}` })));
   const canRemove = stops.length > 2;
   const canAdd = stops.length < 6;
-  const add = (at: number) => setStops((all) => [...all.slice(0, at), { label: "", from: null, key: `n${Date.now()}` }, ...all.slice(at)]);
+  const add = (at: number) => setStops((all) => [...all.slice(0, at), { label: "", note: "", from: null, key: `n${Date.now()}` }, ...all.slice(at)]);
   return (
     <section aria-label="Edit your route" className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-1">
@@ -458,7 +469,7 @@ function RouteEditor({
         {stops.map((stop, i) => (
           <li key={stop.key} className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className={`size-3 shrink-0 rounded-full border-2 ${i === 0 ? "border-dawn bg-dawn" : "border-forest/50"}`} aria-hidden />
+              <span className={`size-3 shrink-0 rounded-full border-2 ${stop.from === here ? "border-dawn bg-dawn" : "border-forest/50"}`} aria-hidden />
               <label className="sr-only" htmlFor={`stop-${stop.key}`}>
                 {i === 0 ? "Where you are now" : i === stops.length - 1 ? "Where you want to be" : `Stop ${i + 1}`}
               </label>
@@ -480,6 +491,18 @@ function RouteEditor({
                 <X className="size-3.5" aria-hidden />
               </button>
             </div>
+            <label className="sr-only" htmlFor={`note-${stop.key}`}>
+              Note for {stop.label || "this stop"}
+            </label>
+            <textarea
+              id={`note-${stop.key}`}
+              value={stop.note}
+              maxLength={140}
+              rows={1}
+              placeholder="What this means to you (optional), e.g. remote, $150K+, mission-driven"
+              onChange={(e) => setStops((all) => all.map((s) => (s.key === stop.key ? { ...s, note: e.target.value } : s)))}
+              className="field field-sm field-multiline ml-5 w-[calc(100%-1.25rem)] resize-y text-xs text-muted-foreground"
+            />
             {i < stops.length - 1 && canAdd && (
               <button type="button" onClick={() => add(i + 1)} className="ml-5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-forest">
                 <Plus className="size-3" aria-hidden /> Add a stop here
@@ -492,7 +515,7 @@ function RouteEditor({
         <button
           type="button"
           disabled={busy || stops.some((s) => !s.label.trim())}
-          onClick={() => onSave(stops.map(({ label, from }) => ({ label: label.trim(), from })))}
+          onClick={() => onSave(stops.map(({ label, from, note }) => ({ label: label.trim(), from, note: note.trim() || null })))}
           className="btn btn-primary btn-sm"
         >
           Save my route

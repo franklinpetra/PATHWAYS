@@ -109,6 +109,8 @@ export interface RouteStop {
   paySource: SourceAttribution | null;
   /** The main requirement to reach this stop from the previous one, e.g. "Exam". */
   gate: string | null;
+  /** The person's own words about what this stop means to them; never written by the AI. */
+  note?: string | null;
 }
 
 export interface PathwayRoute {

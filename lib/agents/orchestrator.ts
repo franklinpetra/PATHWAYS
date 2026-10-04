@@ -130,7 +130,8 @@ async function converse(
   const now = new Date();
   const openSteps = pathway ? state.actions.filter((a) => a.pathway_id === pathway.id && isVisibleStep(a, now)) : [];
 
-  const prompt = buildSystemPrompt({ contextItems: state.contextItems, pathway, openSteps, findings });
+  const route = pathway ? (state.routes?.find((r) => r.pathway_id === pathway.id) ?? null) : null;
+  const prompt = buildSystemPrompt({ contextItems: state.contextItems, pathway, openSteps, findings, route });
   // Figures the person supplied may be echoed back; anything else must come from a verified claim.
   const personText = [
     message,
@@ -324,7 +325,7 @@ async function proposeCandidates(args: {
           `Pathway: ${args.pathway.title}`,
           `Open steps:\n${args.openSteps.map((s) => `- ${s.title}`).join("\n") || "(none)"}`,
           args.route?.confirmed_stops?.length
-            ? `Their chosen route${args.route.person_edited ? " (they edited it themselves; keep their wording and goal)" : ""}: ${args.route.confirmed_stops.map((s) => s.label).join(" -> ")}. Suggest a different route only if this conversation changes or sharpens where they're heading.`
+            ? `Their chosen route${args.route.person_edited ? " (they edited it themselves; keep their wording and goal)" : ""}: ${args.route.confirmed_stops.map((s) => (s.note ? `${s.label} (${s.note})` : s.label)).join(" -> ")}. Suggest a different route only if this conversation changes or sharpens where they're heading.`
             : "Their chosen route: (none yet)",
           `Earlier in the conversation (for the route only):\n${
             args.earlier.map((m) => `${m.role === "user" ? "Person" : "Reply"}: ${m.content.slice(0, EARLIER_MESSAGE_CHARS)}`).join("\n\n") ||

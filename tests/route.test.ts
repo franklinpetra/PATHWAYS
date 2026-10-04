@@ -200,3 +200,20 @@ describe("footsteps", () => {
     expect(result.mutations[1]).toMatchObject({ op: "update_progress_event", patch: { route_stop: 0 } });
   });
 });
+
+describe("route stop notes", () => {
+  const base: RouteStop[] = [
+    { label: "Coder with AI", pay: null, paySource: null, gate: null },
+    { label: "Full-stack engineer", pay: null, paySource: null, gate: "Portfolio", note: "Remote, $150K+" },
+  ];
+
+  it("keeps a stop's note unless the person changes it, and cleans what they write", () => {
+    const kept = buildEditedStops(base, [{ label: "Coder with AI", from: 0 }, { label: "Full-stack engineer", from: 1 }]) as RouteStop[];
+    expect(kept[1].note).toBe("Remote, $150K+");
+    const changed = buildEditedStops(base, [
+      { label: "Coder with AI", from: 0, note: "  Studio founder  " },
+      { label: "Full-stack engineer", from: 1, note: null },
+    ]) as RouteStop[];
+    expect(changed.map((s) => s.note)).toEqual(["Studio founder", null]);
+  });
+});

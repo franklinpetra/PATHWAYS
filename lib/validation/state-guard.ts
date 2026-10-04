@@ -482,7 +482,7 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[],
 // AI-suggested routes
 // ---------------------------------------------------------------------------
 
-export const ROUTE_LIMITS = { minStops: 2, maxStops: 5, label: 40, gate: 24, pay: 32 } as const;
+export const ROUTE_LIMITS = { minStops: 2, maxStops: 5, label: 40, gate: 24, pay: 32, note: 140 } as const;
 
 export interface RouteStopProposal {
   label: string;
@@ -554,7 +554,10 @@ export function guardRouteProposal(
  * label is unchanged (pay and the requirement belong to that exact role); renamed and new stops
  * start without them. The first stop never has a gate.
  */
-export function buildEditedStops(base: RouteStop[], stops: { label: string; from: number | null }[]): RouteStop[] | string {
+export function buildEditedStops(
+  base: RouteStop[],
+  stops: { label: string; from: number | null; note?: string | null }[],
+): RouteStop[] | string {
   const seen = new Set<number>();
   const out: RouteStop[] = [];
   for (const [i, s] of stops.entries()) {
@@ -569,6 +572,8 @@ export function buildEditedStops(base: RouteStop[], stops: { label: string; from
       pay: same ? kept!.pay : null,
       paySource: same ? kept!.paySource : null,
       gate: i === 0 ? null : same ? kept!.gate : null,
+      // The note is the person's; undefined keeps what the stop already had.
+      note: s.note === undefined ? (kept?.note ?? null) : cleanText(s.note, ROUTE_LIMITS.note),
     });
   }
   if (out.length < ROUTE_LIMITS.minStops) return `a route needs at least ${ROUTE_LIMITS.minStops} stops`;
@@ -577,7 +582,7 @@ export function buildEditedStops(base: RouteStop[], stops: { label: string; from
 }
 
 /** Where an old stop index lands after an edit: its own new place, else the nearest earlier kept stop, else 0. */
-export function remapIndex(old: number, stops: { from: number | null }[]): number {
+export function remapIndex(old: number, stops: { from: number | null; note?: string | null }[]): number {
   for (let o = old; o >= 0; o--) {
     const i = stops.findIndex((s) => s.from === o);
     if (i >= 0) return i;
@@ -750,7 +755,7 @@ export const userActionSchema = z.discriminatedUnion("type", [
     pathwayId: z.uuid(),
     base: z.enum(["confirmed", "suggested"]),
     stops: z
-      .array(z.object({ label: z.string(), from: z.number().int().min(0).max(20).nullable() }))
+      .array(z.object({ label: z.string(), from: z.number().int().min(0).max(20).nullable(), note: z.string().nullable().optional() }))
       .min(ROUTE_LIMITS.minStops)
       .max(ROUTE_LIMITS.maxStops + 1),
   }),

@@ -1,4 +1,4 @@
-import type { Action, ContextItem, Pathway, ReadinessState } from "@/lib/db/types";
+import type { Action, ContextItem, Pathway, PathwayRoute, ReadinessState } from "@/lib/db/types";
 import { formatAttribution } from "@/lib/workspace/attribution";
 import type { FactFindings } from "./retrieval";
 
@@ -117,8 +117,23 @@ export function buildSystemPrompt(args: {
   pathway: Pathway | null;
   openSteps: Action[];
   findings: FactFindings;
+  /** The route the person chose; its stops and notes are their own words about where they're going. */
+  route?: PathwayRoute | null;
 }): string {
   const sections = [BASE_PROMPT];
+
+  const stops = args.route?.confirmed_stops;
+  if (stops?.length) {
+    sections.push(
+      [
+        "Their route, in their own words (shape advice to what each stop means to them):",
+        ...stops.map(
+          (s, i) =>
+            `${i + 1}. ${s.label}${i === args.route!.position ? " (they are here)" : ""}${s.note ? `: ${s.note}` : ""}`,
+        ),
+      ].join("\n"),
+    );
+  }
 
   if (args.pathway) {
     const p = args.pathway;
