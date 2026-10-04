@@ -207,7 +207,7 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
     const want = { fields, audiences: params.audiences, county, origin: place };
     return [
       ...matchSteppingStones(openStones.filter((p) => !isSupport(p)), want, 4),
-      ...matchSteppingStones(openStones.filter(isSupport), want, 4),
+      ...matchSteppingStones(openStones.filter(isSupport), want, 6),
     ].map(steppingStoneClaim);
   };
   if (phrases.length === 0) {
