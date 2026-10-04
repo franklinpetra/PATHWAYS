@@ -15,6 +15,8 @@ import {
   type PathwayRoute,
   type ProgressEvent,
   type RouteStop,
+  type WinStage,
+  WIN_STAGES,
   type Provenance,
   type StoredMessage,
   type SemanticStatus,
@@ -57,8 +59,9 @@ type ActionInsert = Pick<Action, "pathway_id" | "title" | "why" | "how" | "statu
 type ActionFieldPatch = Partial<Pick<Action, "display_order" | "postponed_until" | "removed_at" | "due_at">>;
 type ProgressEventInsert = Pick<
   ProgressEvent,
-  "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning"
+  "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning" | "stage" | "route_stop"
 >;
+type ProgressEventPatch = Partial<Pick<ProgressEvent, "title" | "learning" | "stage" | "route_stop">>;
 
 type MessageInsert = Pick<
   StoredMessage,
@@ -72,9 +75,13 @@ type Mutation =
   | { op: "update_action_status"; id: string; from: ActionStatus; status: ActionStatus }
   | { op: "update_action_fields"; id: string; patch: ActionFieldPatch }
   | { op: "insert_progress_event"; row: ProgressEventInsert }
-  | { op: "update_progress_event"; id: string; userId: string; patch: { title: string; learning: string | null } }
+  | { op: "update_progress_event"; id: string; userId: string; patch: ProgressEventPatch }
   | { op: "insert_message"; row: MessageInsert }
-  | { op: "upsert_route"; pathwayId: string; patch: Partial<Pick<PathwayRoute, "confirmed_stops" | "suggested_stops" | "position">> };
+  | {
+      op: "upsert_route";
+      pathwayId: string;
+      patch: Partial<Pick<PathwayRoute, "confirmed_stops" | "suggested_stops" | "position" | "person_edited">>;
+    };
 
 export type ValidatedMutation = Mutation & { readonly [validated]: true };
 
@@ -221,6 +228,14 @@ function checkMeaningfulWin(state: GuardState, eventType: string, title: string 
 function ownsPathway(state: GuardState, pathwayId: string): boolean {
   return state.pathways.some((p) => p.id === pathwayId);
 }
+
+/** The stop the person has reached on their chosen route, or null with no chosen route. */
+function currentStop(state: GuardState, pathwayId: string | null): number | null {
+  const route = pathwayId ? state.routes?.find((r) => r.pathway_id === pathwayId) : undefined;
+  return route?.confirmed_stops?.length ? route.position : null;
+}
+
+const sameTitle = (a: string, b: string) => normalizeForMatch(a) === normalizeForMatch(b);
 
 // ---------------------------------------------------------------------------
 // Memory Agent proposals
@@ -534,6 +549,42 @@ export function guardRouteProposal(
   return result;
 }
 
+/**
+ * The person's edit of a route. A stop kept from the base keeps its pay and gate only while its
+ * label is unchanged (pay and the requirement belong to that exact role); renamed and new stops
+ * start without them. The first stop never has a gate.
+ */
+export function buildEditedStops(base: RouteStop[], stops: { label: string; from: number | null }[]): RouteStop[] | string {
+  const seen = new Set<number>();
+  const out: RouteStop[] = [];
+  for (const [i, s] of stops.entries()) {
+    const label = cleanText(s.label, ROUTE_LIMITS.label);
+    if (!label) return "every stop needs a name";
+    if (s.from !== null && (s.from >= base.length || seen.has(s.from))) return "a stop can only be kept once";
+    if (s.from !== null) seen.add(s.from);
+    const kept = s.from !== null ? base[s.from] : null;
+    const same = !!kept && kept.label === label;
+    out.push({
+      label,
+      pay: same ? kept!.pay : null,
+      paySource: same ? kept!.paySource : null,
+      gate: i === 0 ? null : same ? kept!.gate : null,
+    });
+  }
+  if (out.length < ROUTE_LIMITS.minStops) return `a route needs at least ${ROUTE_LIMITS.minStops} stops`;
+  if (out.length > ROUTE_LIMITS.maxStops + 1) return "that route has too many stops";
+  return out;
+}
+
+/** Where an old stop index lands after an edit: its own new place, else the nearest earlier kept stop, else 0. */
+export function remapIndex(old: number, stops: { from: number | null }[]): number {
+  for (let o = old; o >= 0; o--) {
+    const i = stops.findIndex((s) => s.from === o);
+    if (i >= 0) return i;
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // AI-proposed Recent Wins (candidates only; never persisted without the person)
 // ---------------------------------------------------------------------------
@@ -543,6 +594,7 @@ export interface WinProposal {
   event_type: string;
   title: string;
   learning: string | null;
+  stage?: WinStage;
   evidence_status?: EvidenceStatus;
 }
 
@@ -551,6 +603,7 @@ export interface WinCandidate {
   event_type: string;
   title: string;
   learning: string | null;
+  stage: WinStage;
 }
 
 /** Filters AI-proposed wins down to meaningful, well-formed candidates the person can choose to record. */
@@ -565,7 +618,10 @@ export function guardWinCandidates(
     const error =
       p.evidence_status && p.evidence_status !== "user_reported"
         ? "only the person can report a win from conversation"
-        : checkMeaningfulWin(state, p.event_type, title, p.pathway_id);
+        : (checkMeaningfulWin(state, p.event_type, title, p.pathway_id) ??
+          (state.progressEvents.some((e) => e.pathway_id === p.pathway_id && sameTitle(e.title, title!))
+            ? "already recorded"
+            : null));
     if (error) rejections.push({ proposal: `win "${p.title}"`, reason: error });
     else
       candidates.push({
@@ -573,6 +629,7 @@ export function guardWinCandidates(
         event_type: p.event_type,
         title: title!,
         learning: cleanText(p.learning, LIMITS.detail),
+        stage: p.stage === "underway" ? "underway" : "done",
       });
   }
   return { candidates, rejections };
@@ -681,9 +738,22 @@ export const userActionSchema = z.discriminatedUnion("type", [
       eventType: z.string(),
       title: z.string(),
       learning: z.string().nullable().optional(),
+      stage: z.enum(WIN_STAGES).optional(),
     }),
   }),
+  /** An under-way win is finished. */
+  z.object({ type: z.literal("finish_win"), progressEventId: z.uuid() }),
   z.object({ type: z.literal("accept_route"), pathwayId: z.uuid() }),
+  /** The person's own version of the route: each stop is new, or kept/renamed from an index of the base. */
+  z.object({
+    type: z.literal("set_route_stops"),
+    pathwayId: z.uuid(),
+    base: z.enum(["confirmed", "suggested"]),
+    stops: z
+      .array(z.object({ label: z.string(), from: z.number().int().min(0).max(20).nullable() }))
+      .min(ROUTE_LIMITS.minStops)
+      .max(ROUTE_LIMITS.maxStops + 1),
+  }),
   z.object({ type: z.literal("dismiss_route"), pathwayId: z.uuid() }),
   z.object({ type: z.literal("set_route_position"), pathwayId: z.uuid(), position: z.number().int().min(0).max(20) }),
   z.object({
@@ -740,6 +810,8 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
                 evidence_status: "user_reported",
                 source: "next_step",
                 learning: null,
+                stage: "done",
+                route_stop: currentStop(state, step.pathway_id),
               },
             }),
           );
@@ -946,9 +1018,15 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
             seal({
               op: "upsert_route",
               pathwayId: action.pathwayId,
-              patch: { confirmed_stops: route.suggested_stops, suggested_stops: null, position: 0 },
+              patch: { confirmed_stops: route.suggested_stops, suggested_stops: null, position: 0, person_edited: false },
             }),
           );
+          // Wins so far become the first footsteps on the new road.
+          for (const e of state.progressEvents) {
+            if (e.pathway_id === action.pathwayId && e.route_stop !== 0) {
+              result.mutations.push(seal({ op: "update_progress_event", id: e.id, userId: state.userId, patch: { route_stop: 0 } }));
+            }
+          }
         } else if (action.type === "dismiss_route") {
           if (!route?.suggested_stops) {
             reject("there is no suggested route to dismiss");
@@ -961,6 +1039,57 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
             break;
           }
           result.mutations.push(seal({ op: "upsert_route", pathwayId: action.pathwayId, patch: { position: action.position } }));
+        }
+        break;
+      }
+
+      case "finish_win": {
+        const event = eventsById.get(action.progressEventId);
+        if (!event || event.stage !== "underway") {
+          reject("only an under-way win can be finished");
+          break;
+        }
+        result.mutations.push(seal({ op: "update_progress_event", id: event.id, userId: state.userId, patch: { stage: "done" } }));
+        break;
+      }
+
+      case "set_route_stops": {
+        if (!ownsPathway(state, action.pathwayId)) {
+          reject("pathway not found");
+          break;
+        }
+        const route = state.routes?.find((r) => r.pathway_id === action.pathwayId);
+        const base = action.base === "confirmed" ? route?.confirmed_stops : route?.suggested_stops;
+        if (!base?.length) {
+          reject(`there is no ${action.base} route to edit`);
+          break;
+        }
+        const built = buildEditedStops(base, action.stops);
+        if (typeof built === "string") {
+          reject(built);
+          break;
+        }
+        // "You are here" follows its stop; a removed stop leaves the person at the nearest earlier one.
+        const oldPosition = action.base === "confirmed" ? route!.position : 0;
+        const position = action.base === "confirmed" ? remapIndex(oldPosition, action.stops) : 0;
+        result.mutations.push(
+          seal({
+            op: "upsert_route",
+            pathwayId: action.pathwayId,
+            patch: {
+              confirmed_stops: built,
+              position,
+              person_edited: true,
+              ...(action.base === "suggested" && { suggested_stops: null }),
+            },
+          }),
+        );
+        for (const e of state.progressEvents) {
+          if (e.pathway_id !== action.pathwayId) continue;
+          const next = action.base === "suggested" || e.route_stop === null ? 0 : remapIndex(e.route_stop, action.stops);
+          if (next !== e.route_stop) {
+            result.mutations.push(seal({ op: "update_progress_event", id: e.id, userId: state.userId, patch: { route_stop: next } }));
+          }
         }
         break;
       }
@@ -983,6 +1112,8 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
               evidence_status: "user_reported",
               source: "user_recorded",
               learning: cleanText(action.win.learning, LIMITS.detail),
+              stage: action.win.stage ?? "done",
+              route_stop: currentStop(state, action.win.pathwayId),
             },
           }),
         );

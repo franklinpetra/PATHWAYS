@@ -22,3 +22,12 @@ describe("MessageText sections", () => {
     expect(html).not.toContain("|---");
   });
 });
+
+describe("MessageText quotes", () => {
+  it("renders > lines as a quote instead of raw markers", () => {
+    const html = renderToStaticMarkup(<MessageText text={"For your profile:\n\n> **Find your next step in Washington.**\n> Start at pathways.click."} />);
+    expect(html).toContain("<blockquote");
+    expect(html).not.toContain("&gt;");
+    expect(html).toContain("<strong>Find your next step in Washington.</strong>");
+  });
+});

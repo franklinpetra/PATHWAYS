@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateStructured, streamChat, type ChatMessage } from "@/lib/ai/openrouter";
 import { applyMutations } from "@/lib/db/mutations";
 import { getRoute, listLiveContextItems, listMessages, loadGuardState } from "@/lib/db/queries";
-import { WIN_EVENT_TYPES, type Action, type Pathway } from "@/lib/db/types";
+import { WIN_EVENT_TYPES, WIN_STAGES, type Action, type Pathway, type PathwayRoute } from "@/lib/db/types";
 import {
   guardMemoryProposals,
   guardMessage,
@@ -195,6 +195,7 @@ async function converse(
       reply,
       pathway,
       openSteps,
+      route: state.routes?.find((r) => r.pathway_id === pathway.id) ?? null,
       earlier: history.slice(-ROUTE_CONTEXT_TURNS),
       signal: input.signal,
     });
@@ -263,7 +264,10 @@ const candidatesSchema = z.object({
   wins: z.array(
     z.object({
       event_type: z.enum(WIN_EVENT_TYPES),
-      title: z.string().describe("Past tense, e.g. 'Talked with a working electrician'."),
+      stage: z.enum(WIN_STAGES).describe("'done' if finished; 'underway' if started and still in progress."),
+      title: z
+        .string()
+        .describe("Short, in their terms. Done: past tense, e.g. 'Landed a first client'. Under way: e.g. 'Setting up an Upwork profile'."),
       learning: z.string().nullable().describe("What they learned, in their terms, if they said."),
     }),
   ),
@@ -287,7 +291,10 @@ const CANDIDATES_PROMPT = `You review one exchange between a person and their pa
 
 next_steps: concrete actions the reply proposed or the person said they intend to take. At most 3. Each must be small, specific, and doable within about two weeks, and must name an employer, role, program, credential, registry, office, or form. Never generic networking, job-board, or resume steps; resume steps only for a named target role and a specific change. Skip anything that duplicates an open step. Return none if the exchange did not point to an action.
 
-wins: only things the person says they have already done that move this pathway forward: submitting an application, talking with someone in the field, contacting a program, attending an event, preparing a document, finishing research, or making a decision. Using this app, logging in, or chatting is never a win. Return none if nothing qualifies.
+wins: be generous. Catch every real step forward the person mentions, even in passing, even if it's small, so they can see their momentum. Up to 3.
+- done: something they finished, such as landing a first client, picking a company name, sending an application, talking with someone in the field, contacting a program, finishing a document, or making a decision.
+- underway: something they've started and are working on, such as setting up an Upwork page, drafting an email to a recruiter, building a portfolio, or growing a warm prospect.
+Only what the person says about themselves, never what the reply suggests they do. Using this app, logging in, or chatting is never a win. Skip anything already recorded. Return none if nothing qualifies.
 
 topics: 2-3 natural follow-ups the person might want to explore next, phrased as they would say them (e.g. "What does the first year cost?"). Never repeat what was just answered.
 
@@ -298,6 +305,8 @@ async function proposeCandidates(args: {
   reply: string;
   pathway: Pathway;
   openSteps: Action[];
+  /** The route the person chose, if any; suggestions build on it. */
+  route: PathwayRoute | null;
   /** Earlier messages in this pathway, oldest first. */
   earlier: ChatMessage[];
   signal?: AbortSignal;
@@ -314,6 +323,9 @@ async function proposeCandidates(args: {
         content: [
           `Pathway: ${args.pathway.title}`,
           `Open steps:\n${args.openSteps.map((s) => `- ${s.title}`).join("\n") || "(none)"}`,
+          args.route?.confirmed_stops?.length
+            ? `Their chosen route${args.route.person_edited ? " (they edited it themselves; keep their wording and goal)" : ""}: ${args.route.confirmed_stops.map((s) => s.label).join(" -> ")}. Suggest a different route only if this conversation changes or sharpens where they're heading.`
+            : "Their chosen route: (none yet)",
           `Earlier in the conversation (for the route only):\n${
             args.earlier.map((m) => `${m.role === "user" ? "Person" : "Reply"}: ${m.content.slice(0, EARLIER_MESSAGE_CHARS)}`).join("\n\n") ||
             "(none)"

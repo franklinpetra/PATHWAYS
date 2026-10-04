@@ -22,8 +22,7 @@ export async function transcribe(audio: Blob, filename: string, signal?: AbortSi
   form.append("model", TRANSCRIBE_MODEL);
   form.append("file", audio, filename);
   form.append("response_format", "json");
-  // Domain words the transcriber should expect.
-  form.append("prompt", "A conversation about careers, apprenticeships, and jobs in Washington State.");
+  // No prompt: on near-silent audio the model can return its prompt as if it were speech.
   const res = await fetch(`${BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key()}` },

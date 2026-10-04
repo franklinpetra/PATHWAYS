@@ -42,7 +42,7 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
                       onAction([
                         {
                           type: "record_win",
-                          win: { pathwayId: c.pathway_id, eventType: c.event_type, title: c.title, learning: c.learning },
+                          win: { pathwayId: c.pathway_id, eventType: c.event_type, title: c.title, learning: c.learning, stage: c.stage },
                         },
                       ]);
                       onDismissCandidate(c);

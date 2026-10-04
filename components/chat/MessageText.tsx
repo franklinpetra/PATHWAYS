@@ -53,7 +53,7 @@ function renderInline(text: string, cite: CiteProps): ReactNode[] {
   });
 }
 
-type Block = { kind: "p" | "ul" | "ol" | "h" | "table"; lines: string[]; level?: number };
+type Block = { kind: "p" | "ul" | "ol" | "h" | "table" | "quote"; lines: string[]; level?: number };
 
 function toBlocks(text: string): Block[] {
   const blocks: Block[] = [];
@@ -74,6 +74,13 @@ function toBlocks(text: string): Block[] {
     // Horizontal rules carry no content here.
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       blocks.push({ kind: "p", lines: [] });
+      continue;
+    }
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "quote") last.lines.push(quote[1]);
+      else blocks.push({ kind: "quote", lines: [quote[1]] });
       continue;
     }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
@@ -100,6 +107,17 @@ function BlockView({ block, cite }: { block: Block; cite: CiteProps }) {
   switch (block.kind) {
     case "h":
       return <p className="pt-1 font-semibold">{renderInline(block.lines[0], cite)}</p>;
+    case "quote":
+      return (
+        <blockquote className="border-l-2 border-forest/40 pl-3.5 text-foreground/90">
+          {block.lines.map((line, j) => (
+            <Fragment key={j}>
+              {j > 0 && <br />}
+              {renderInline(line, cite)}
+            </Fragment>
+          ))}
+        </blockquote>
+      );
     case "table": {
       const [head, ...rows] = block.lines.map(cells);
       return (

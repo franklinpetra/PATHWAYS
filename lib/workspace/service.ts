@@ -19,7 +19,8 @@ export async function loadPanels(
 ): Promise<{ nextSteps: Action[]; recentWins: ProgressEvent[]; route: PathwayRoute | null }> {
   const [nextSteps, recentWins, route] = await Promise.all([
     pathwayId ? listNextSteps(pathwayId) : Promise.resolve([]),
-    listRecentWins(userId),
+    // Enough wins for every footstep on the route; the list itself shows them all on request.
+    listRecentWins(userId, 100),
     pathwayId ? getRoute(pathwayId) : Promise.resolve(null),
   ]);
   return { nextSteps, recentWins, route };

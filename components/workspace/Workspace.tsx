@@ -10,7 +10,6 @@ import { SuggestedTopics } from "@/components/chat/SuggestedTopics";
 import { VoiceBar } from "@/components/chat/VoiceBar";
 import { useVoiceConversation } from "@/components/chat/useVoiceConversation";
 import { NextSteps } from "@/components/dashboard/NextSteps";
-import { RecentWins } from "@/components/dashboard/RecentWins";
 import { YourRoute } from "@/components/route/YourRoute";
 import { postWorkspaceActions, streamChatTurn } from "@/lib/client/api";
 import type { Action, Pathway, PathwayRoute, ProgressEvent } from "@/lib/db/types";
@@ -183,22 +182,21 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
     </>
   );
 
-  // Your Route and the wins along it: the big picture, kept just under the message box.
-  const hasRoute = !!(route?.confirmed_stops?.length || route?.suggested_stops?.length);
-  const journey =
-    hasRoute || wins.length > 0 || candidates.length > 0 ? (
-      <div className="mt-3 space-y-4 rounded-card border border-border bg-surface/70 px-4 py-3.5 lg:mb-4">
-        <YourRoute pathwayId={pathway.id} route={route} busy={panelBusy} onAction={(actions) => runActions(actions)} />
-        <RecentWins
-          variant="inline"
-          wins={wins}
-          candidates={candidates}
-          busy={panelBusy}
-          onAction={(actions) => runActions(actions)}
-          onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
-        />
-      </div>
-    ) : null;
+  // Your Route with its footsteps: the big picture, kept at the top on every screen.
+  const journey = (
+    <div className="mb-4 border-b border-border pb-3">
+      <YourRoute
+        pathwayId={pathway.id}
+        route={route}
+        wins={wins}
+        candidates={candidates}
+        busy={panelBusy}
+        onAction={(actions) => runActions(actions)}
+        onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
+      />
+    </div>
+  );
+  const hasJourney = !!(route?.confirmed_stops?.length || route?.suggested_stops?.length || wins.some((w) => w.pathway_id === pathway.id) || candidates.length);
 
   const planCount = steps.length;
 
@@ -224,6 +222,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
             )}
           </button>
         </div>
+
+        {hasJourney && journey}
 
         <aside
           id="your-plan"
@@ -254,7 +254,6 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
               voice={{ supported: voice.supported, active: voice.state !== "off", onStart: () => void voice.start() }}
             />
           </div>
-          {journey}
         </div>
       </section>
 
@@ -276,22 +275,15 @@ function Thread({
   pathwayTitle: string;
   sharedPlace: WorkspaceProps["sharedPlace"];
 }) {
-  const endRef = useRef<HTMLDivElement>(null);
-  const atBottom = useRef(true);
-
-  // Follow new content only while the person is already at the end of the thread.
+  // Each exchange starts at the top: the person's latest message is scrolled to the top edge and the
+  // reply grows below it, so nothing half-hidden sits at the edge and the answer reads from its start.
+  const lastUserId = [...messages].reverse().find((m) => m.role === "user")?.id;
   useEffect(() => {
-    const el = endRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => (atBottom.current = entry.isIntersecting));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    if (!lastUserId) return;
+    document.querySelector(`[data-message-id="${lastUserId}"]`)?.scrollIntoView({ block: "start" });
+  }, [lastUserId]);
 
   const last = messages[messages.length - 1];
-  useEffect(() => {
-    if (atBottom.current || last?.role === "user") endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, last?.content, last?.role]);
 
   return (
     <div className={messages.length || sharedPlace
@@ -312,7 +304,7 @@ function Thread({
 
       {messages.map((m) =>
         m.role === "user" ? (
-          <div key={m.id} className="flex items-end justify-end gap-1.5">
+          <div key={m.id} data-message-id={m.id} className="flex scroll-mt-24 items-end justify-end gap-1.5 lg:scroll-mt-4">
             {m.viaVoice && <Mic className="mb-2 size-3.5 shrink-0 text-muted-foreground" aria-label="Spoken" />}
             <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-person px-4 py-2.5 text-[15px] leading-relaxed text-white">
               {m.content}
@@ -322,7 +314,8 @@ function Thread({
           <AssistantMessage key={m.id} message={m} pathwayId={pathwayId} />
         ),
       )}
-      <div ref={endRef} className="h-px" />
+      {/* Room below the last reply so the latest exchange can scroll to the top. */}
+      <div className="h-[40vh]" aria-hidden />
     </div>
   );
 }

@@ -62,7 +62,13 @@ export const WIN_EVENT_TYPES = [
   "document_prepared",
   "research_completed",
   "decision_made",
+  "milestone_reached",
+  "work_started",
 ] as const;
+
+/** A win is done, or under way (started, and still a step forward). */
+export const WIN_STAGES = ["done", "underway"] as const;
+export type WinStage = (typeof WIN_STAGES)[number];
 export type WinEventType = (typeof WIN_EVENT_TYPES)[number];
 
 export const MESSAGE_ROLES = ["user", "assistant"] as const;
@@ -110,6 +116,8 @@ export interface PathwayRoute {
   confirmed_stops: RouteStop[] | null;
   suggested_stops: RouteStop[] | null;
   position: number;
+  /** The person changed the route's stops themselves; suggestions should build on it. */
+  person_edited: boolean;
   updated_at: string;
 }
 
@@ -155,6 +163,9 @@ export interface ProgressEvent {
   evidence_status: EvidenceStatus;
   source: string | null;
   learning: string | null;
+  stage: WinStage;
+  /** The route stop the person had reached when this happened; its footsteps sit on the stretch after it. */
+  route_stop: number | null;
   occurred_at: string;
   created_at: string;
 }
