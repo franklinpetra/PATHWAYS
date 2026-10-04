@@ -1,3 +1,4 @@
+import type { SourceAttribution } from "@/lib/workspace/events";
 // Mirrors the enums and tables in supabase/migrations/20261001000000_phase1_core_schema.sql.
 // Once a Supabase project is linked, prefer `supabase gen types typescript` output.
 
@@ -92,6 +93,23 @@ export interface Pathway {
   current_question: string | null;
   why_considered: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+/** One stop on a person's route. Pay is shown only when a verified source stated it. */
+export interface RouteStop {
+  label: string;
+  pay: string | null;
+  paySource: SourceAttribution | null;
+  /** The main requirement to reach this stop from the previous one, e.g. "Exam". */
+  gate: string | null;
+}
+
+export interface PathwayRoute {
+  pathway_id: string;
+  confirmed_stops: RouteStop[] | null;
+  suggested_stops: RouteStop[] | null;
+  position: number;
   updated_at: string;
 }
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { applyMutations } from "@/lib/db/mutations";
-import { listNextSteps, listRecentWins, loadGuardState } from "@/lib/db/queries";
-import type { Action, ProgressEvent } from "@/lib/db/types";
+import { getRoute, listNextSteps, listRecentWins, loadGuardState } from "@/lib/db/queries";
+import type { Action, PathwayRoute, ProgressEvent } from "@/lib/db/types";
 import { guardUserActions, type Rejection, type UserAction } from "@/lib/validation/state-guard";
 
 /** Applies explicit user actions through the state guard. Returns what was declined. */
@@ -16,10 +16,11 @@ export async function applyUserActions(userId: string, actions: UserAction[]): P
 export async function loadPanels(
   userId: string,
   pathwayId: string | null,
-): Promise<{ nextSteps: Action[]; recentWins: ProgressEvent[] }> {
-  const [nextSteps, recentWins] = await Promise.all([
+): Promise<{ nextSteps: Action[]; recentWins: ProgressEvent[]; route: PathwayRoute | null }> {
+  const [nextSteps, recentWins, route] = await Promise.all([
     pathwayId ? listNextSteps(pathwayId) : Promise.resolve([]),
     listRecentWins(userId),
+    pathwayId ? getRoute(pathwayId) : Promise.resolve(null),
   ]);
-  return { nextSteps, recentWins };
+  return { nextSteps, recentWins, route };
 }

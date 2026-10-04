@@ -28,7 +28,7 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
   const pathway = await getPathway(userId, id);
   if (!pathway) notFound();
 
-  const [{ nextSteps, recentWins }, stored, query] = await Promise.all([
+  const [{ nextSteps, recentWins, route }, stored, query] = await Promise.all([
     loadPanels(userId, pathway.id),
     listMessages(userId, pathway.id, 100),
     searchParams,
@@ -43,6 +43,7 @@ export default async function PathwayPage({ params, searchParams }: PageProps) {
         pathway={pathway}
         initialSteps={nextSteps}
         initialWins={recentWins}
+        initialRoute={route}
         initialTopics={initialTopics(pathway)}
         sharedPlace={place ? { query: place, label } : null}
         initialMessages={stored.map((m) => ({

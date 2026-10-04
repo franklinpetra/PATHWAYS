@@ -8,8 +8,9 @@ import { SourceList, citationAnchor } from "@/components/chat/SourceList";
 import { SuggestedTopics } from "@/components/chat/SuggestedTopics";
 import { NextSteps } from "@/components/dashboard/NextSteps";
 import { RecentWins } from "@/components/dashboard/RecentWins";
+import { YourRoute } from "@/components/route/YourRoute";
 import { postWorkspaceActions, streamChatTurn } from "@/lib/client/api";
-import type { Action, Pathway, ProgressEvent } from "@/lib/db/types";
+import type { Action, Pathway, PathwayRoute, ProgressEvent } from "@/lib/db/types";
 import type { UserAction, WinCandidate } from "@/lib/validation/state-guard";
 import type { Citation, VerifiedPlace } from "@/lib/workspace/events";
 
@@ -30,6 +31,7 @@ interface WorkspaceProps {
   pathway: Pathway;
   initialSteps: Action[];
   initialWins: ProgressEvent[];
+  initialRoute: PathwayRoute | null;
   initialTopics: string[];
   /** A place sent from another device via the handoff link. */
   sharedPlace: { query: string; label: string | null } | null;
@@ -52,11 +54,12 @@ function useWide(): boolean | null {
   );
 }
 
-export function Workspace({ pathway, initialSteps, initialWins, initialTopics, sharedPlace, initialMessages }: WorkspaceProps) {
+export function Workspace({ pathway, initialSteps, initialWins, initialRoute, initialTopics, sharedPlace, initialMessages }: WorkspaceProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [topics, setTopics] = useState(initialTopics);
   const [steps, setSteps] = useState(initialSteps);
   const [wins, setWins] = useState(initialWins);
+  const [route, setRoute] = useState(initialRoute);
   const [candidates, setCandidates] = useState<WinCandidate[]>([]);
   const [panelBusy, setPanelBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -111,6 +114,9 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
               setWins(event.recent);
               setCandidates(event.candidates);
               break;
+            case "route":
+              setRoute(event.route);
+              break;
             case "error":
               updateMessage(assistantId, (m) => ({ ...m, status: "error", content: m.content || event.message }));
               break;
@@ -143,6 +149,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
       const result = await postWorkspaceActions(pathway.id, actions);
       setSteps(result.nextSteps);
       setWins(result.recentWins);
+      setRoute(result.route);
       if (result.rejected > 0) setNotice("That change couldn't be saved. Try rephrasing or refreshing.");
     } catch (err) {
       setSteps(previous);
@@ -197,6 +204,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
             )}
           </button>
         </div>
+
+        <YourRoute pathwayId={pathway.id} route={route} busy={panelBusy} onAction={(actions) => runActions(actions)} />
 
         <aside
           id="your-plan"
@@ -260,7 +269,9 @@ function Thread({
   }, [messages.length, last?.content, last?.role]);
 
   return (
-    <div className={messages.length || sharedPlace ? "flex-1 space-y-6 lg:overflow-y-auto lg:pr-2" : ""} aria-busy={last?.status === "streaming"}>
+    <div className={messages.length || sharedPlace
+          ? "flex-1 space-y-6 lg:overflow-y-auto lg:pt-4 lg:pr-2 lg:[mask-image:linear-gradient(to_bottom,transparent,black_1.5rem)]"
+          : ""} aria-busy={last?.status === "streaming"}>
       {sharedPlace && (
         <div>
           <p className="mb-2 text-xs text-muted-foreground">Sent from your other device</p>

@@ -1,4 +1,4 @@
-import type { Action, ProgressEvent } from "@/lib/db/types";
+import type { Action, PathwayRoute, ProgressEvent } from "@/lib/db/types";
 import type { WinCandidate } from "@/lib/validation/state-guard";
 
 /** Where a claim comes from: [Source Name | Observation Period / As-of Date | Verification Authority]. */
@@ -38,6 +38,7 @@ export type ChatEvent =
   | { type: "topics"; items: string[] }
   | { type: "next_steps"; items: Action[] }
   | { type: "wins"; recent: ProgressEvent[]; candidates: WinCandidate[] }
+  | { type: "route"; route: PathwayRoute | null }
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -45,6 +46,7 @@ export type ChatEvent =
 export interface PanelsResponse {
   nextSteps: Action[];
   recentWins: ProgressEvent[];
+  route: PathwayRoute | null;
   /** How many requested changes the state guard declined. */
   rejected: number;
 }

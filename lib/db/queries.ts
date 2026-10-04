@@ -7,6 +7,7 @@ import type {
   CredentialMatch,
   Occupation,
   OccupationWage,
+  PathwayRoute,
   Pathway,
   Place,
   ProgressEvent,
@@ -118,8 +119,20 @@ export async function loadGuardState(userId: string): Promise<GuardState> {
     listPathways(userId),
     listRecentWins(userId, 50),
   ]);
-  const actions = await listActionsForPathways(pathways.map((p) => p.id));
-  return { userId, contextItems, archivedContextItems, pathways, actions, progressEvents };
+  const ids = pathways.map((p) => p.id);
+  const [actions, routes] = await Promise.all([listActionsForPathways(ids), listRoutes(ids)]);
+  return { userId, contextItems, archivedContextItems, pathways, actions, progressEvents, routes };
+}
+
+export async function listRoutes(pathwayIds: string[]): Promise<PathwayRoute[]> {
+  if (pathwayIds.length === 0) return [];
+  const res = await db().from("pathway_routes").select("*").in("pathway_id", pathwayIds);
+  return unwrap<PathwayRoute[]>(res, "routes");
+}
+
+export async function getRoute(pathwayId: string): Promise<PathwayRoute | null> {
+  const res = await db().from("pathway_routes").select("*").eq("pathway_id", pathwayId).maybeSingle();
+  return unwrap<PathwayRoute | null>(res, "route");
 }
 
 // ---------------------------------------------------------------------------

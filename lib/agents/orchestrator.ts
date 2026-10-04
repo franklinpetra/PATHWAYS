@@ -2,11 +2,12 @@ import "server-only";
 import { z } from "zod";
 import { generateStructured, streamChat, type ChatMessage } from "@/lib/ai/openrouter";
 import { applyMutations } from "@/lib/db/mutations";
-import { listLiveContextItems, listMessages, loadGuardState } from "@/lib/db/queries";
+import { getRoute, listLiveContextItems, listMessages, loadGuardState } from "@/lib/db/queries";
 import { WIN_EVENT_TYPES, type Action, type Pathway } from "@/lib/db/types";
 import {
   guardMemoryProposals,
   guardMessage,
+  guardRouteProposal,
   guardStepProposals,
   guardWinCandidates,
   isVisibleStep,
@@ -188,6 +189,13 @@ async function converse(
         proposals.next_steps.map((s) => ({ ...s, pathway_id: pathway.id })),
       ),
     );
+    const route = guardRouteProposal(
+      state,
+      pathway.id,
+      proposals.route,
+      findings.claims.map((c) => ({ statement: c.statement, source: c.source })),
+    );
+    if (await commitQuietly("route", route)) emit({ type: "route", route: await getRoute(pathway.id) });
     const wins = guardWinCandidates(
       state,
       proposals.wins.map((w) => ({ ...w, pathway_id: pathway.id })),
@@ -244,6 +252,17 @@ const candidatesSchema = z.object({
   topics: z
     .array(z.string())
     .describe("2-3 follow-up topics the person might raise next, in their voice, under 8 words each."),
+  route: z
+    .array(
+      z.object({
+        label: z.string().describe("Two to four words, e.g. 'Bookkeeping experience', 'Pharmacy technician'."),
+        pay: z.string().nullable().describe("A pay figure exactly as the reply stated it for this stop, e.g. '$21.00/hr'. Null if none."),
+        pay_source_number: z.number().nullable().describe("The [n] the reply cited for that pay figure. Null if no pay."),
+        gate_before: z.string().nullable().describe("The main requirement to reach this stop, one or two words, e.g. 'Exam', 'License'. Null if none or for the first stop."),
+      }),
+    )
+    .nullable()
+    .describe("The person's path as 2-5 stops, or null if the exchange doesn't make a path clear."),
 });
 
 const CANDIDATES_PROMPT = `You review one exchange between a person and their pathway thinking partner and pull out structured items. You never speak to the person.
@@ -252,7 +271,9 @@ next_steps: concrete actions the reply proposed or the person said they intend t
 
 wins: only things the person says they have already done that move this pathway forward: submitting an application, talking with someone in the field, contacting a program, attending an event, preparing a document, finishing research, or making a decision. Using this app, logging in, or chatting is never a win. Return none if nothing qualifies.
 
-topics: 2-3 natural follow-ups the person might want to explore next, phrased as they would say them (e.g. "What does the first year cost?"). Never repeat what was just answered.`;
+topics: 2-3 natural follow-ups the person might want to explore next, phrased as they would say them (e.g. "What does the first year cost?"). Never repeat what was just answered.
+
+route: the person's path as 2-5 stops, only when the exchange makes a path toward their goal clear. The first stop is where they stand today, in their own terms (e.g. "Art degree", "Bookkeeping experience", "Home after 5 years"); the last is the goal they named or the reply recommended; any middle stops are the rungs the reply laid out. Give a pay figure for a stop only if the reply states one for it with a [n] citation, copied exactly, with that n. gate_before names the main requirement between the previous stop and this one (e.g. "Exam", "License", "Credential review", "Apprenticeship"). Return null if no clear path was discussed.`;
 
 async function proposeCandidates(args: {
   message: string;

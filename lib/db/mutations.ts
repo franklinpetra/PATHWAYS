@@ -35,5 +35,7 @@ function apply(m: ValidatedMutation) {
       return db().from("messages").insert(m.row);
     case "update_progress_event":
       return db().from("progress_events").update(m.patch).eq("id", m.id).eq("user_id", m.userId);
+    case "upsert_route":
+      return db().from("pathway_routes").upsert({ pathway_id: m.pathwayId, ...m.patch }, { onConflict: "pathway_id" });
   }
 }

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { extractFigures } from "@/lib/agents/grounding";
+import type { SourceAttribution } from "@/lib/workspace/events";
 import {
   CONTEXT_ITEM_TYPES,
   WIN_EVENT_TYPES,
@@ -10,7 +12,9 @@ import {
   type MessageRole,
   type MessageStatus,
   type Pathway,
+  type PathwayRoute,
   type ProgressEvent,
+  type RouteStop,
   type Provenance,
   type StoredMessage,
   type SemanticStatus,
@@ -34,6 +38,8 @@ import {
  *  - A current user statement silently supersedes the stale context it contradicts.
  *  - The person can keep, rewrite, or delete anything remembered. Deleted items are archived,
  *    leave every prompt, and are not re-inferred unless the person says them again.
+ *  - The AI may only suggest a route. Using it and moving "you are here" are the person's
+ *    actions, and a stop shows pay only when a verified source from that turn states it.
  */
 
 // ---------------------------------------------------------------------------
@@ -67,7 +73,8 @@ type Mutation =
   | { op: "update_action_fields"; id: string; patch: ActionFieldPatch }
   | { op: "insert_progress_event"; row: ProgressEventInsert }
   | { op: "update_progress_event"; id: string; userId: string; patch: { title: string; learning: string | null } }
-  | { op: "insert_message"; row: MessageInsert };
+  | { op: "insert_message"; row: MessageInsert }
+  | { op: "upsert_route"; pathwayId: string; patch: Partial<Pick<PathwayRoute, "confirmed_stops" | "suggested_stops" | "position">> };
 
 export type ValidatedMutation = Mutation & { readonly [validated]: true };
 
@@ -97,6 +104,8 @@ export interface GuardState {
   actions: Action[];
   /** The person's recent progress events (the ones they can see and edit). */
   progressEvents: ProgressEvent[];
+  /** Routes on the person's pathways. */
+  routes?: PathwayRoute[];
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +464,77 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[],
 }
 
 // ---------------------------------------------------------------------------
+// AI-suggested routes
+// ---------------------------------------------------------------------------
+
+export const ROUTE_LIMITS = { minStops: 2, maxStops: 5, label: 40, gate: 24, pay: 32 } as const;
+
+export interface RouteStopProposal {
+  label: string;
+  /** A pay figure as the reply stated it, e.g. "$21.00/hr". */
+  pay: string | null;
+  /** The [n] of the verified source that states the pay. */
+  pay_source_number: number | null;
+  gate_before: string | null;
+}
+
+/** A sourced claim from this turn, numbered as the reply cited it ([1] is index 0). */
+export interface RouteClaim {
+  statement: string;
+  source: SourceAttribution;
+}
+
+function sameStops(a: RouteStop[] | null | undefined, b: RouteStop[]): boolean {
+  return !!a && JSON.stringify(a.map((s) => [s.label, s.pay, s.gate])) === JSON.stringify(b.map((s) => [s.label, s.pay, s.gate]));
+}
+
+/**
+ * Turns an AI route proposal into a suggestion. Labels and gates are cleaned and capped; a
+ * stop keeps its pay only if every figure in it appears in the cited verified claim, and then
+ * carries that claim's source. The person's confirmed route and position are never touched.
+ */
+export function guardRouteProposal(
+  state: GuardState,
+  pathwayId: string,
+  proposal: RouteStopProposal[] | null,
+  claims: RouteClaim[],
+): GuardResult {
+  const result: GuardResult = { mutations: [], rejections: [] };
+  if (!proposal) return result;
+  const reject = (reason: string) => result.rejections.push({ proposal: "suggest route", reason });
+  if (!ownsPathway(state, pathwayId)) {
+    reject("pathway not found");
+    return result;
+  }
+
+  const stops: RouteStop[] = [];
+  for (const [i, p] of proposal.slice(0, ROUTE_LIMITS.maxStops).entries()) {
+    const label = cleanText(p.label, ROUTE_LIMITS.label);
+    if (!label) continue;
+    const claim = p.pay_source_number != null ? claims[p.pay_source_number - 1] : undefined;
+    const pay = cleanText(p.pay, ROUTE_LIMITS.pay);
+    const figures = pay ? extractFigures(pay) : [];
+    const claimFigures = new Set(claim ? extractFigures(claim.statement).map((f) => f.key) : []);
+    const verified = !!claim && figures.length > 0 && figures.every((f) => claimFigures.has(f.key));
+    stops.push({
+      label,
+      pay: verified ? pay : null,
+      paySource: verified ? claim!.source : null,
+      gate: i === 0 ? null : cleanText(p.gate_before, ROUTE_LIMITS.gate),
+    });
+  }
+  if (stops.length < ROUTE_LIMITS.minStops) {
+    reject(`a route needs at least ${ROUTE_LIMITS.minStops} stops`);
+    return result;
+  }
+
+  const current = state.routes?.find((r) => r.pathway_id === pathwayId);
+  if (sameStops(current?.confirmed_stops, stops) || sameStops(current?.suggested_stops, stops)) return result;
+  result.mutations.push(seal({ op: "upsert_route", pathwayId, patch: { suggested_stops: stops } }));
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // AI-proposed Recent Wins (candidates only; never persisted without the person)
 // ---------------------------------------------------------------------------
 
@@ -593,6 +673,9 @@ export const userActionSchema = z.discriminatedUnion("type", [
       learning: z.string().nullable().optional(),
     }),
   }),
+  z.object({ type: z.literal("accept_route"), pathwayId: z.uuid() }),
+  z.object({ type: z.literal("dismiss_route"), pathwayId: z.uuid() }),
+  z.object({ type: z.literal("set_route_position"), pathwayId: z.uuid(), position: z.number().int().min(0).max(20) }),
   z.object({
     type: z.literal("edit_win"),
     progressEventId: z.uuid(),
@@ -832,6 +915,43 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
         );
         item.semantic_status = target;
         item.provenance = provenance;
+        break;
+      }
+
+      case "accept_route":
+      case "dismiss_route":
+      case "set_route_position": {
+        if (!ownsPathway(state, action.pathwayId)) {
+          reject("pathway not found");
+          break;
+        }
+        const route = state.routes?.find((r) => r.pathway_id === action.pathwayId);
+        if (action.type === "accept_route") {
+          if (!route?.suggested_stops?.length) {
+            reject("there is no suggested route to use");
+            break;
+          }
+          // A new route starts where the person is: its first stop.
+          result.mutations.push(
+            seal({
+              op: "upsert_route",
+              pathwayId: action.pathwayId,
+              patch: { confirmed_stops: route.suggested_stops, suggested_stops: null, position: 0 },
+            }),
+          );
+        } else if (action.type === "dismiss_route") {
+          if (!route?.suggested_stops) {
+            reject("there is no suggested route to dismiss");
+            break;
+          }
+          result.mutations.push(seal({ op: "upsert_route", pathwayId: action.pathwayId, patch: { suggested_stops: null } }));
+        } else {
+          if (!route?.confirmed_stops || action.position >= route.confirmed_stops.length) {
+            reject("that stop is not on the route");
+            break;
+          }
+          result.mutations.push(seal({ op: "upsert_route", pathwayId: action.pathwayId, patch: { position: action.position } }));
+        }
         break;
       }
 
