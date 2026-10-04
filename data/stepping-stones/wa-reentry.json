@@ -1,13 +1,13 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2026-10-03",
     "notes": [
       "Reentry support services: record relief, legal help, ID, and employer incentives. They appear beside training programs for people who say they are coming home from prison or jail or have a record, never as a career route.",
       "Every quote is re-checked against its live page on each sync; a record whose quote disappears is skipped and reported.",
       "CROP and vacating are not immediate options for someone just released: CROP has waiting periods (e.g. two years after release for a class B or C felony), and vacating usually requires a Certificate of Discharge. The summaries say so; please confirm that framing.",
-      "Left out, and why: (1) Work Opportunity Tax Credit: ESD's alert says 'The federal grant for WOTC ended Dec. 31, 2025. Congress may choose to reauthorize it.' Telling someone an employer gets a credit would be wrong today; add it back if Congress reauthorizes. (2) MOD Pizza: its current careers page (modpizza.com/join-mod-squad) says nothing about second-chance hiring; the only sources are 2018-2019 news stories, before the 2024 ownership change. A second-chance employer record needs the company's own current statement. (3) 'DSHS ID Voucher Program': no program by that name; the real benefit is DOL's $5 reduced-fee ID card, drafted below under DOL's terms.",
+      "Three requested items were left out; see the 'excluded' section at the end of this file for each one and why.",
       "Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these records."
     ]
   },
@@ -18,7 +18,9 @@
       "name": "Certificate of Restoration of Opportunity (CROP)",
       "organization": "Washington State courts (RCW 9.97)",
       "summary": "A court certificate that keeps state, county, and city licensing agencies from disqualifying a qualified applicant solely because of criminal history, with some professions excepted. It's available only after a waiting period, for example two years after release from prison or jail for a class B or C felony.",
-      "audiences": ["returning_citizens"],
+      "audiences": [
+        "returning_citizens"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
@@ -44,7 +46,9 @@
       "name": "Vacating a felony conviction",
       "organization": "Washington Law Help (Northwest Justice Project)",
       "summary": "Free forms and instructions for clearing (vacating) certain Washington felony convictions. Once a conviction is vacated, you can tell anyone who asks that you were not convicted of that offense, though the court file stays public. In most situations you also need a Certificate of Discharge.",
-      "audiences": ["returning_citizens"],
+      "audiences": [
+        "returning_citizens"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
@@ -68,7 +72,9 @@
       "name": "CLEAR legal hotline (Northwest Justice Project)",
       "organization": "Northwest Justice Project",
       "summary": "A free legal advice and referral hotline for low-income Washington residents (at or below 125% of the poverty line) with civil legal problems. Outside King County, call 1-888-201-1014 weekdays 9:15 am to 12:15 pm.",
-      "audiences": ["returning_citizens"],
+      "audiences": [
+        "returning_citizens"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
@@ -91,13 +97,19 @@
       "name": "Civil Survival",
       "organization": "Civil Survival",
       "summary": "A Washington organization of people directly impacted by the criminal legal system. It offers free attorney office hours, help with legal financial obligations (LFOs), and a free copy of your criminal history so you can see which convictions still have LFOs.",
-      "audiences": ["returning_citizens"],
+      "audiences": [
+        "returning_citizens"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
       "statewide": true,
       "website": "https://civilsurvival.org/",
-      "source": { "name": "Civil Survival", "url": "https://civilsurvival.org/", "authority": "Civil Survival" },
+      "source": {
+        "name": "Civil Survival",
+        "url": "https://civilsurvival.org/",
+        "authority": "Civil Survival"
+      },
       "quotes": [
         "Founded in 2015, Civil Survival organizes people in the state of Washington who have been directly impacted by the criminal legal system",
         "Meet with an attorney for free at an upcoming attorney office hours appointment.",
@@ -113,7 +125,10 @@
       "name": "Federal Bonding Program",
       "organization": "Washington State Employment Security Department",
       "summary": "Employers who hire someone involved with the justice system can get a free bond from ESD that reimburses up to $25,000 of employee theft during the first 6 months of employment, something you can mention to an employer who hesitates.",
-      "audiences": ["returning_citizens", "tanf_recipients"],
+      "audiences": [
+        "returning_citizens",
+        "tanf_recipients"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
@@ -137,7 +152,9 @@
       "name": "WorkSource Pierce: services for justice-impacted job seekers",
       "organization": "WorkSource Pierce (WorkForce Central)",
       "summary": "Free employment services in Pierce County for people impacted by the justice system, including the Navigating Barriers to Employment After Incarceration workshop series and free job fairs at the Pierce County District Court Resource Center.",
-      "audiences": ["returning_citizens"],
+      "audiences": [
+        "returning_citizens"
+      ],
       "fields": [],
       "paid": null,
       "city": "Tacoma",
@@ -160,7 +177,11 @@
       "name": "Reduced-fee Washington ID card ($5)",
       "organization": "Washington State Department of Licensing",
       "summary": "A standard Washington ID card costs $5 instead of the full fee if you bring a DSHS 'Request for Identicard' form or a DSHS benefits approval letter to a driver licensing office. If you're under 25 and don't have a permanent home address, you don't need any documentation.",
-      "audiences": ["returning_citizens", "experiencing_homelessness", "tanf_recipients"],
+      "audiences": [
+        "returning_citizens",
+        "experiencing_homelessness",
+        "tanf_recipients"
+      ],
       "fields": [],
       "paid": null,
       "city": null,
@@ -176,6 +197,38 @@
         "A copy of your DSHS benefits approval letter showing your current certification period",
         "If you are under 25 years old and don't have a permanent home address, you don't need to provide any documentation."
       ]
+    }
+  ],
+  "excluded": [
+    {
+      "requested": "Work Opportunity Tax Credit (WOTC)",
+      "decision": "Left out for now",
+      "why": "The federal program behind the credit has lapsed. Telling someone that an employer gets a tax credit for hiring them would be wrong today.",
+      "evidence": {
+        "url": "https://esd.wa.gov/about-us/alerts-and-updates/wotc-status-2026",
+        "quote": "The federal grant for WOTC ended Dec. 31, 2025. Congress may choose to reauthorize it."
+      },
+      "revisit_when": "Congress reauthorizes WOTC and ESD resumes processing applications."
+    },
+    {
+      "requested": "MOD Pizza as a second-chance employer",
+      "decision": "Left out for now",
+      "why": "MOD Pizza's own current careers page says nothing about second-chance hiring. The only sources are news stories from 2018-2019, before the company's 2024 ownership change and store closures, so they may not describe how it hires today.",
+      "evidence": {
+        "url": "https://modpizza.com/join-mod-squad/",
+        "quote": null
+      },
+      "revisit_when": "MOD Pizza (or any employer) publishes a current statement of its second-chance hiring on its own site; the 'second_chance_employer' kind is ready for it."
+    },
+    {
+      "requested": "Washington DSHS ID Voucher Program",
+      "decision": "Replaced",
+      "why": "There is no program by that name. The real benefit is the Department of Licensing's $5 reduced-fee ID card for people with a DSHS 'Request for Identicard' form or benefits letter (or under 25 without a permanent address), drafted above as 'Reduced-fee Washington ID card ($5)' under DOL's own terms.",
+      "evidence": {
+        "url": "https://dol.wa.gov/driver-licenses-and-permits/driver-licensing-fees",
+        "quote": "If you are eligible, your cost for a standard ID card is $5."
+      },
+      "revisit_when": null
     }
   ]
 }
