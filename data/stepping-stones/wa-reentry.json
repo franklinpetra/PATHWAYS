@@ -1,0 +1,181 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Reentry support services: record relief, legal help, ID, and employer incentives. They appear beside training programs for people who say they are coming home from prison or jail or have a record, never as a career route.",
+      "Every quote is re-checked against its live page on each sync; a record whose quote disappears is skipped and reported.",
+      "CROP and vacating are not immediate options for someone just released: CROP has waiting periods (e.g. two years after release for a class B or C felony), and vacating usually requires a Certificate of Discharge. The summaries say so; please confirm that framing.",
+      "Left out, and why: (1) Work Opportunity Tax Credit: ESD's alert says 'The federal grant for WOTC ended Dec. 31, 2025. Congress may choose to reauthorize it.' Telling someone an employer gets a credit would be wrong today; add it back if Congress reauthorizes. (2) MOD Pizza: its current careers page (modpizza.com/join-mod-squad) says nothing about second-chance hiring; the only sources are 2018-2019 news stories, before the 2024 ownership change. A second-chance employer record needs the company's own current statement. (3) 'DSHS ID Voucher Program': no program by that name; the real benefit is DOL's $5 reduced-fee ID card, drafted below under DOL's terms.",
+      "Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these records."
+    ]
+  },
+  "programs": [
+    {
+      "id": "crop-certificate-of-restoration-of-opportunity",
+      "kind": "support_service",
+      "name": "Certificate of Restoration of Opportunity (CROP)",
+      "organization": "Washington State courts (RCW 9.97)",
+      "summary": "A court certificate that keeps state, county, and city licensing agencies from disqualifying a qualified applicant solely because of criminal history, with some professions excepted. It's available only after a waiting period, for example two years after release from prison or jail for a class B or C felony.",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://app.leg.wa.gov/RCW/default.aspx?cite=9.97.020",
+      "source": {
+        "name": "RCW 9.97.020: Certificate of restoration of opportunity",
+        "url": "https://app.leg.wa.gov/RCW/default.aspx?cite=9.97.020",
+        "authority": "Washington State Legislature"
+      },
+      "quotes": [
+        "solely based on the applicant's criminal history, if the qualified applicant has obtained a certificate of restoration of opportunity and the applicant meets all other statutory and regulatory requirements",
+        "This section does not apply to the licensing, certification, or qualification of the following professionals",
+        {
+          "url": "https://app.leg.wa.gov/RCW/default.aspx?cite=9.97.010",
+          "text": "Two years have passed from release from total or partial confinement from a Washington prison or jail or juvenile facility for those sentenced by a Washington state court for a class B or C felony"
+        }
+      ]
+    },
+    {
+      "id": "vacate-felony-conviction",
+      "kind": "support_service",
+      "name": "Vacating a felony conviction",
+      "organization": "Washington Law Help (Northwest Justice Project)",
+      "summary": "Free forms and instructions for clearing (vacating) certain Washington felony convictions. Once a conviction is vacated, you can tell anyone who asks that you were not convicted of that offense, though the court file stays public. In most situations you also need a Certificate of Discharge.",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.washingtonlawhelp.org/en/vacate-felony-conviction",
+      "source": {
+        "name": "Washington Law Help: Vacate a felony conviction",
+        "url": "https://www.washingtonlawhelp.org/en/vacate-felony-conviction",
+        "authority": "Northwest Justice Project"
+      },
+      "quotes": [
+        "You can clear (vacate) certain Washington state felony convictions from your record.",
+        "If you get a criminal record vacated, you can tell anyone who asked that you were not convicted of that offense.",
+        "Even though vacating a record cancels the judgement against you, it does not make the court record private.",
+        "In most situations, you’ll also need a Certificate of Discharge."
+      ]
+    },
+    {
+      "id": "clear-legal-hotline",
+      "kind": "support_service",
+      "name": "CLEAR legal hotline (Northwest Justice Project)",
+      "organization": "Northwest Justice Project",
+      "summary": "A free legal advice and referral hotline for low-income Washington residents (at or below 125% of the poverty line) with civil legal problems. Outside King County, call 1-888-201-1014 weekdays 9:15 am to 12:15 pm.",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.courts.wa.gov/self-help/get-legal-help/",
+      "source": {
+        "name": "Washington Courts: Get Legal Help",
+        "url": "https://www.courts.wa.gov/self-help/get-legal-help/",
+        "authority": "Washington State Administrative Office of the Courts"
+      },
+      "quotes": [
+        "CLEAR (Coordinated Legal Education, Advice and Referral) is a legal advice and referral hotline for low-income Washington residents with civil legal problems.",
+        "serves individuals whose incomes are at or below 125% of the poverty line",
+        "If you are outside of King County, you can contact the CLEAR Hotline at 1-888-201-1014 weekdays between 9:15 am - 12:15 pm."
+      ]
+    },
+    {
+      "id": "civil-survival",
+      "kind": "support_service",
+      "name": "Civil Survival",
+      "organization": "Civil Survival",
+      "summary": "A Washington organization of people directly impacted by the criminal legal system. It offers free attorney office hours, help with legal financial obligations (LFOs), and a free copy of your criminal history so you can see which convictions still have LFOs.",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://civilsurvival.org/",
+      "source": { "name": "Civil Survival", "url": "https://civilsurvival.org/", "authority": "Civil Survival" },
+      "quotes": [
+        "Founded in 2015, Civil Survival organizes people in the state of Washington who have been directly impacted by the criminal legal system",
+        "Meet with an attorney for free at an upcoming attorney office hours appointment.",
+        {
+          "url": "https://civilsurvival.org/guides/reducing-legal-financial-obligations/",
+          "text": "If you need help determining which of your convictions have LFOs remaining to be paid, we can provide you with a free copy of your criminal history."
+        }
+      ]
+    },
+    {
+      "id": "federal-bonding-program",
+      "kind": "support_service",
+      "name": "Federal Bonding Program",
+      "organization": "Washington State Employment Security Department",
+      "summary": "Employers who hire someone involved with the justice system can get a free bond from ESD that reimburses up to $25,000 of employee theft during the first 6 months of employment, something you can mention to an employer who hesitates.",
+      "audiences": ["returning_citizens", "tanf_recipients"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://esd.wa.gov/hire-new-employees/federal-bonding-certain-workers",
+      "source": {
+        "name": "ESD: Federal bonding for certain workers",
+        "url": "https://esd.wa.gov/hire-new-employees/federal-bonding-certain-workers",
+        "authority": "Washington State Employment Security Department"
+      },
+      "quotes": [
+        "The Federal Bonding program (FBP) gives bonds to employers who hire at-risk workers.",
+        "Involved with the justice system.",
+        "You can get these bonds for free as an incentive to hire these applicants.",
+        "Federal bonds will reimburse you if a bonded employee steals up to $25,000 of money or property during their first 6 months of employment."
+      ]
+    },
+    {
+      "id": "worksource-pierce-justice-impacted",
+      "kind": "support_service",
+      "name": "WorkSource Pierce: services for justice-impacted job seekers",
+      "organization": "WorkSource Pierce (WorkForce Central)",
+      "summary": "Free employment services in Pierce County for people impacted by the justice system, including the Navigating Barriers to Employment After Incarceration workshop series and free job fairs at the Pierce County District Court Resource Center.",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": "Tacoma",
+      "statewide": false,
+      "website": "https://worksource-pierce.org/jobseekers/justice-impacted/",
+      "source": {
+        "name": "WorkSource Pierce: Justice-impacted Individuals",
+        "url": "https://worksource-pierce.org/jobseekers/justice-impacted/",
+        "authority": "WorkSource Pierce"
+      },
+      "quotes": [
+        "Our free services can help you overcome employment barriers with confidence.",
+        "The Navigating Barriers to Employment After Incarceration workshop series is designed to support individuals impacted by the justice system in overcoming systemic, social, and personal barriers to employment.",
+        "The Pierce County District Court Resource Center hosts free job fairs designed for people with justice involvement or other barriers to employment."
+      ]
+    },
+    {
+      "id": "dol-reduced-fee-id-card",
+      "kind": "support_service",
+      "name": "Reduced-fee Washington ID card ($5)",
+      "organization": "Washington State Department of Licensing",
+      "summary": "A standard Washington ID card costs $5 instead of the full fee if you bring a DSHS 'Request for Identicard' form or a DSHS benefits approval letter to a driver licensing office. If you're under 25 and don't have a permanent home address, you don't need any documentation.",
+      "audiences": ["returning_citizens", "experiencing_homelessness", "tanf_recipients"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://dol.wa.gov/driver-licenses-and-permits/driver-licensing-fees",
+      "source": {
+        "name": "DOL: Driver licensing fees",
+        "url": "https://dol.wa.gov/driver-licenses-and-permits/driver-licensing-fees",
+        "authority": "Washington State Department of Licensing"
+      },
+      "quotes": [
+        "If you are eligible, your cost for a standard ID card is $5.",
+        "A copy of your DSHS benefits approval letter showing your current certification period",
+        "If you are under 25 years old and don't have a permanent home address, you don't need to provide any documentation."
+      ]
+    }
+  ]
+}

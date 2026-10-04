@@ -101,3 +101,17 @@ describe("matchSteppingStones by distance", () => {
     expect(names).toEqual(["Kent Trades", "Statewide Trades"]);
   });
 });
+
+describe("support services", () => {
+  it("are told apart from training routes", async () => {
+    const { isSupport } = await import("@/lib/agents/stepping-stones");
+    expect(isSupport(program({ name: "CLEAR", kind: "support_service" }))).toBe(true);
+    expect(isSupport(program({ name: "ANEW" }))).toBe(false);
+  });
+
+  it("match by audience alone, statewide, and stay hidden from people outside it", () => {
+    const clear = program({ name: "CLEAR", kind: "support_service", audiences: ["returning_citizens"], statewide: true, county: null });
+    expect(matchSteppingStones([clear], { fields: [], audiences: ["returning_citizens"], county: "Pierce" }).map((p) => p.name)).toEqual(["CLEAR"]);
+    expect(matchSteppingStones([clear], { fields: ["construction"], audiences: [], county: "Pierce" })).toEqual([]);
+  });
+});

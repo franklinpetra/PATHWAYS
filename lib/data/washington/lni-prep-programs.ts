@@ -14,7 +14,7 @@ const LIST_HEADING = /<h3>\s*List of apprenticeship preparation programs\s*<\/h3
 
 export interface SteppingStoneRow extends SourceStamp {
   source_record_id: string;
-  kind: "pre_apprenticeship" | "returnship" | "transitional_employment" | "paid_training" | "job_training";
+  kind: "pre_apprenticeship" | "returnship" | "transitional_employment" | "paid_training" | "job_training" | "support_service" | "second_chance_employer";
   name: string;
   organization: string | null;
   summary: string | null;

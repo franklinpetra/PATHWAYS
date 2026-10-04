@@ -45,7 +45,12 @@ const KIND_LABEL: Record<SteppingStone["kind"], string> = {
   transitional_employment: "transitional employment program",
   paid_training: "paid training program",
   job_training: "job training program",
+  support_service: "support service",
+  second_chance_employer: "second-chance employer",
 };
+
+/** Services and employers help alongside a route; they never stand in for a training program. */
+export const isSupport = (p: SteppingStone) => p.kind === "support_service" || p.kind === "second_chance_employer";
 
 /** Beyond this, a program in another part of the state isn't a realistic option. */
 export const MAX_DISTANCE_MILES = 80;

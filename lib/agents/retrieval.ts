@@ -16,7 +16,7 @@ import {
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
 import { supportedClaims } from "./grounding";
-import { AUDIENCES, fieldsForSocCodes, matchSteppingStones, steppingStoneClaim } from "./stepping-stones";
+import { AUDIENCES, fieldsForSocCodes, isSupport, matchSteppingStones, steppingStoneClaim } from "./stepping-stones";
 import { incomeGapClaim, incomeTarget, incomeTargetClaim, localWages, payTransparencyClaim, wageClaim } from "./income";
 import { OFFICIAL_FACTS_PROMPT, OFFICIAL_SOURCES, officialFactsSchema, verifyOfficialFacts, type OfficialClaim } from "./official-sources";
 import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
@@ -202,8 +202,14 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
   const { place, county } = await resolveLocation(params.location, notes);
   // Stepping stones need only an audience or a field, so they're found even with no occupation named.
   const openStones = await listOpenSteppingStones();
-  const stones = (fields: string[]) =>
-    matchSteppingStones(openStones, { fields, audiences: params.audiences, county, origin: place }).map(steppingStoneClaim);
+  // Training routes and support services are matched separately, so help never crowds out a route.
+  const stones = (fields: string[]) => {
+    const want = { fields, audiences: params.audiences, county, origin: place };
+    return [
+      ...matchSteppingStones(openStones.filter((p) => !isSupport(p)), want, 4),
+      ...matchSteppingStones(openStones.filter(isSupport), want, 4),
+    ].map(steppingStoneClaim);
+  };
   if (phrases.length === 0) {
     const found = stones([]);
     notes.push(`Stepping-stone program search for ${params.audiences.join(", ")}: ${count(found.length)}.`);

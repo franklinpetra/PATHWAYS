@@ -57,3 +57,30 @@ describe("curatedRows", () => {
     await expect(curatedRows({ status: "reviewed", programs: [{ id: "Bad Id" }] }, async () => page, "2026-10-03")).rejects.toThrow();
   });
 });
+
+describe("curatedRows with quotes from more than one page", () => {
+  const law = {
+    ...program,
+    id: "crop",
+    kind: "support_service",
+    source: { name: "RCW 9.97.020", url: "https://app.leg.wa.gov/a", authority: "Washington State Legislature" },
+    quotes: ["a certificate of restoration of opportunity", { url: "https://app.leg.wa.gov/b", text: "Two years have passed from release" }],
+  };
+  const pages: Record<string, string> = {
+    "https://app.leg.wa.gov/a": "<p>has obtained a certificate of restoration of opportunity and</p>",
+    "https://app.leg.wa.gov/b": "<p>(iv) Two years have passed from release from total confinement</p>",
+  };
+
+  it("checks each quote against its own page", async () => {
+    const { rows, notes } = await curatedRows({ ...reviewed, programs: [law] }, async (u) => pages[u], "2026-10-03");
+    expect(notes).toEqual([]);
+    expect(rows[0]).toMatchObject({ kind: "support_service", provenance: "official" });
+  });
+
+  it("skips the record when the second page no longer has its quote", async () => {
+    const changed: Record<string, string> = { ...pages, "https://app.leg.wa.gov/b": "<p>Amended.</p>" };
+    const { rows, notes } = await curatedRows({ ...reviewed, programs: [law] }, async (u) => changed[u], "2026-10-03");
+    expect(rows).toEqual([]);
+    expect(notes[0]).toMatch(/no longer on https:\/\/app\.leg\.wa\.gov\/b/);
+  });
+});

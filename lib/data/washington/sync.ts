@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { ARTS_DATASET_PAGE, ARTS_DATASETS, artsDownloadUrl, joinArtsOpenData } from "./arts-open-data";
-import curatedPacket from "../../../data/stepping-stones/wa-curated.json";
+import waCurated from "../../../data/stepping-stones/wa-curated.json";
+import waReentry from "../../../data/stepping-stones/wa-reentry.json";
 import { CURATED_PREFIX, curatedRows } from "./curated-stepping-stones";
 import { joinCensusPlaces, placeByCountyUrl, gazetteerUrl } from "./census-places";
 import { parseDelimited } from "./csv";
@@ -187,7 +188,11 @@ export async function syncSteppingStones(client: SupabaseClient | null, opts: Sy
   const asOf = new Date().toISOString().slice(0, 10);
   const stamp = makeStamp("lni_prep", { sourceUrl: LNI_PREP_PAGE, asOf });
   const { rows: official, skipped } = parseLniPrepPrograms(html, stamp);
-  const curated = await curatedRows(curatedPacket, async (url) => (await get(url)).text(), asOf);
+  // Each packet is reviewed on its own; a draft packet loads nothing.
+  const packets = await Promise.all(
+    [waCurated, waReentry].map((packet) => curatedRows(packet, async (url) => (await get(url)).text(), asOf)),
+  );
+  const curated = { rows: packets.flatMap((p) => p.rows), notes: packets.flatMap((p) => p.notes) };
   const rows = [...official, ...curated.rows];
   const summary = [
     `${SOURCES.lni_prep.sourceName} (L&I page, read ${asOf})`,

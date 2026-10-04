@@ -17,7 +17,15 @@ const packetSchema = z.object({
   programs: z.array(
     z.object({
       id: z.string().regex(/^[a-z0-9-]+$/),
-      kind: z.enum(["pre_apprenticeship", "returnship", "transitional_employment", "paid_training", "job_training"]),
+      kind: z.enum([
+        "pre_apprenticeship",
+        "returnship",
+        "transitional_employment",
+        "paid_training",
+        "job_training",
+        "support_service",
+        "second_chance_employer",
+      ]),
       name: z.string().min(1),
       organization: z.string().nullable(),
       summary: z.string().min(1),
@@ -28,7 +36,8 @@ const packetSchema = z.object({
       statewide: z.boolean(),
       website: z.url().nullable(),
       source: z.object({ name: z.string().min(1), url: z.url(), authority: z.string().min(1) }),
-      quotes: z.array(z.string().min(20)).min(1),
+      // A quote is from the program's source page, or from another page named with it.
+      quotes: z.array(z.union([z.string().min(20), z.object({ url: z.url(), text: z.string().min(20) })])).min(1),
     }),
   ),
 });
@@ -62,16 +71,24 @@ export async function curatedRows(
   const rows: SteppingStoneRow[] = [];
   const notes: string[] = [];
   for (const p of packet.programs) {
-    let text: string;
-    try {
-      text = pageText(await fetchPage(p.source.url));
-    } catch (err) {
-      notes.push(`${p.name}: couldn't read ${p.source.url} (${(err as Error).message}); skipped.`);
+    const quotes = p.quotes.map((q) => (typeof q === "string" ? { url: p.source.url, text: q } : q));
+    const pages = new Map<string, string>();
+    let unreadable: string | null = null;
+    for (const url of new Set(quotes.map((q) => q.url))) {
+      try {
+        pages.set(url, pageText(await fetchPage(url)));
+      } catch (err) {
+        unreadable = `${url} (${(err as Error).message})`;
+        break;
+      }
+    }
+    if (unreadable) {
+      notes.push(`${p.name}: couldn't read ${unreadable}; skipped.`);
       continue;
     }
-    const missing = p.quotes.filter((q) => !text.includes(normalizeText(q)));
+    const missing = quotes.filter((q) => !pages.get(q.url)!.includes(normalizeText(q.text)));
     if (missing.length) {
-      notes.push(`${p.name}: ${missing.length} quote(s) no longer on ${p.source.url}; skipped until re-reviewed.`);
+      notes.push(`${p.name}: ${missing.length} quote(s) no longer on ${[...new Set(missing.map((q) => q.url))].join(", ")}; skipped until re-reviewed.`);
       continue;
     }
     const official = /\.wa\.gov$|\.gov$/.test(new URL(p.source.url).hostname);
