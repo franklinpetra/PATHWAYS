@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { ARTS_DATASET_PAGE, ARTS_DATASETS, artsDownloadUrl, joinArtsOpenData } from "./arts-open-data";
 import waCurated from "../../../data/stepping-stones/wa-curated.json";
+import waFastHire from "../../../data/stepping-stones/wa-fast-hire.json";
 import waReentry from "../../../data/stepping-stones/wa-reentry.json";
 import { CURATED_PREFIX, curatedRows } from "./curated-stepping-stones";
 import { joinCensusPlaces, placeByCountyUrl, gazetteerUrl } from "./census-places";
@@ -190,7 +191,7 @@ export async function syncSteppingStones(client: SupabaseClient | null, opts: Sy
   const { rows: official, skipped } = parseLniPrepPrograms(html, stamp);
   // Each packet is reviewed on its own; a draft packet loads nothing.
   const packets = await Promise.all(
-    [waCurated, waReentry].map((packet) => curatedRows(packet, async (url) => (await get(url)).text(), asOf)),
+    [waCurated, waReentry, waFastHire].map((packet) => curatedRows(packet, async (url) => (await get(url)).text(), asOf)),
   );
   const curated = { rows: packets.flatMap((p) => p.rows), notes: packets.flatMap((p) => p.notes) };
   const rows = [...official, ...curated.rows];

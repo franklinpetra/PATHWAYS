@@ -32,7 +32,8 @@ const FIELDS_BY_SOC_GROUP: Record<string, string[]> = {
   "47": ["construction"],
   "49": ["construction", "energy", "manufacturing"],
   "51": ["manufacturing"],
-  "53": ["maritime"],
+  // Transportation and material moving: warehouses and logistics, plus water transportation.
+  "53": ["logistics", "maritime"],
 };
 
 export function fieldsForSocCodes(socCodes: string[]): string[] {
@@ -47,10 +48,12 @@ const KIND_LABEL: Record<SteppingStone["kind"], string> = {
   job_training: "job training program",
   support_service: "support service",
   second_chance_employer: "second-chance employer",
+  staffing_agency: "day-labor and staffing agency",
 };
 
 /** Services and employers help alongside a route; they never stand in for a training program. */
-export const isSupport = (p: SteppingStone) => p.kind === "support_service" || p.kind === "second_chance_employer";
+export const isSupport = (p: SteppingStone) =>
+  p.kind === "support_service" || p.kind === "second_chance_employer" || p.kind === "staffing_agency";
 
 /** Beyond this, a program in another part of the state isn't a realistic option. */
 export const MAX_DISTANCE_MILES = 80;

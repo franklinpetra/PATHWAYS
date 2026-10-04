@@ -115,3 +115,16 @@ describe("support services", () => {
     expect(matchSteppingStones([clear], { fields: ["construction"], audiences: [], county: "Pierce" })).toEqual([]);
   });
 });
+
+describe("staffing agencies", () => {
+  it("sit with help, not training routes, and match by field for anyone who needs work", async () => {
+    const { isSupport } = await import("@/lib/agents/stepping-stones");
+    const agency = program({ name: "LaborWorks", kind: "staffing_agency", fields: ["construction", "logistics"], county: "Pierce" });
+    expect(isSupport(agency)).toBe(true);
+    expect(matchSteppingStones([agency], { fields: ["logistics"], audiences: [], county: "Pierce" }).map((p) => p.name)).toEqual(["LaborWorks"]);
+  });
+
+  it("maps warehouse and material-moving jobs to logistics", () => {
+    expect(fieldsForSocCodes(["53-7062.00"])).toContain("logistics");
+  });
+});

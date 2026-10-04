@@ -25,6 +25,7 @@ const packetSchema = z.object({
         "job_training",
         "support_service",
         "second_chance_employer",
+        "staffing_agency",
       ]),
       name: z.string().min(1),
       organization: z.string().nullable(),

@@ -1,0 +1,105 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Fast-hire options in Tacoma/Pierce County for people who need income this week. They appear beside training routes as help, never as a career route.",
+      "Rule applied: included only where the organization's own website states day pay, walk-in dispatch, or second-chance hiring. Aggregator 'felony-friendly' lists were not accepted as evidence.",
+      "No staffing agency here is described as a second-chance employer: neither LaborWorks nor PeopleReady states that on its own site today. See the 'excluded' section at the end for what was checked.",
+      "PeopleReady offers next-day pay on many jobs (not same-day). It is drafted for your decision; delete it before approving if next-day doesn't meet the bar.",
+      "Every quote is re-checked against its live page on each sync. Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these records."
+    ]
+  },
+  "programs": [
+    {
+      "id": "laborworks-tacoma",
+      "kind": "staffing_agency",
+      "name": "LaborWorks (Tacoma)",
+      "organization": "LaborWorks",
+      "summary": "A day-labor and temporary staffing agency with a Tacoma office. Apply in person at the branch (about 30-45 minutes for new candidates) or online, and get paid at the end of each workday on a paycard when you return to the office; the office is closed Sundays.",
+      "audiences": [],
+      "fields": ["construction", "manufacturing", "logistics"],
+      "paid": true,
+      "city": "Tacoma",
+      "statewide": false,
+      "website": "https://laborworks.com/locations/washington/tacoma/",
+      "source": { "name": "LaborWorks: Staffing Agency FAQs", "url": "https://laborworks.com/about/faqs/", "authority": "LaborWorks" },
+      "quotes": [
+        "LaborWorks pays workers at the end of each workday when they return to the office.",
+        "The exception is Sunday when the office is closed.",
+        "To find work through LaborWorks, visit us in person at a location near you in Washington, Oregon, Nevada, and Colorado.",
+        "As a new candidate, please expect the process to take 30-45 minutes.",
+        { "url": "https://laborworks.com/find-work/", "text": "Work today and get paid today!" },
+        { "url": "https://laborworks.com/locations/washington/tacoma/", "text": "LaborWorks in Tacoma, WA links you with skilled laborers" }
+      ]
+    },
+    {
+      "id": "peopleready-jobstack",
+      "kind": "staffing_agency",
+      "name": "PeopleReady (JobStack app)",
+      "organization": "PeopleReady",
+      "summary": "A staffing agency for general labor, construction, warehouse, and hospitality shifts. Sign up once through its JobStack app with no resume needed; many jobs are eligible for next-day pay.",
+      "audiences": [],
+      "fields": ["construction", "manufacturing", "logistics", "culinary"],
+      "paid": true,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.peopleready.com/find-work/general-labor-jobs/",
+      "source": {
+        "name": "PeopleReady: General labor jobs",
+        "url": "https://www.peopleready.com/find-work/general-labor-jobs/",
+        "authority": "PeopleReady"
+      },
+      "quotes": [
+        "Sign up once to access local PeopleReady jobs — no resume needed!",
+        "With many roles offering next-day pay, you can start fast and get paid fast.",
+        { "url": "https://www.peopleready.com/find-work/", "text": "Plus, many jobs are eligible for next-day pay!" }
+      ]
+    },
+    {
+      "id": "goodwill-lifelaunch-go-tacoma",
+      "kind": "job_training",
+      "name": "Goodwill LifeLaunch: GO (Tacoma)",
+      "organization": "Goodwill of the Olympics & Rainier Region",
+      "summary": "A program for justice-involved youth and young adults ages 18-24 living within Tacoma city limits, with mentorship from people with similar experiences. Justice involvement is reviewed to determine eligibility.",
+      "audiences": ["returning_citizens", "young_adults"],
+      "fields": [],
+      "paid": null,
+      "city": "Tacoma",
+      "statewide": false,
+      "website": "https://goodwillwa.org/lifelaunchgo/",
+      "source": { "name": "Goodwill: LifeLaunch: GO", "url": "https://goodwillwa.org/lifelaunchgo/", "authority": "Goodwill of the Olympics & Rainier Region" },
+      "quotes": [
+        "Many young people who’ve been involved with the justice system are looking for a second chance at life.",
+        "Youth and Young Adults ages 18-24",
+        "Living within Tacoma city limits",
+        "Mentorship from individuals with similar experiences",
+        "Justice involvement will be reviewed to determine eligibility"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "requested": "LaborWorks as a second-chance employer",
+      "decision": "Day pay and walk-in included; second-chance hiring not claimed",
+      "why": "LaborWorks' own site says it coordinates background checks to each client's requirements and follows fair-hiring laws, but it does not say it hires people with records.",
+      "evidence": { "url": "https://laborworks.com/employee-screening-process-temporary-staffing/", "quote": null },
+      "revisit_when": "LaborWorks publishes a second-chance or fair-chance hiring statement on its own site."
+    },
+    {
+      "requested": "PeopleReady / TrueBlue as a second-chance employer",
+      "decision": "Next-day pay included; second-chance hiring not claimed",
+      "why": "The only fair-chance wording is standard legal language inside individual job postings, which expire constantly, and a 2022 TrueBlue corporate report. Neither is a current, stable statement on the company's own site.",
+      "evidence": { "url": "https://www.trueblue.com/wp-content/uploads/sites/4/2022/06/TrueBlue_2022CorporateCitizenshipReport.pdf", "quote": null },
+      "revisit_when": "PeopleReady or TrueBlue publishes a current second-chance hiring page."
+    },
+    {
+      "requested": "Trades Labor Corp., Express Employment, Adecco (Tacoma)",
+      "decision": "Left out",
+      "why": "Their 'fair-chance' or 'daily pay' descriptions came only from third-party job-board lists. Trades Labor's Tacoma page returned no readable statement, and Express and Adecco don't advertise day pay.",
+      "evidence": { "url": "https://www.tradeslabor.com/tacoma.html", "quote": null },
+      "revisit_when": "Each company's own site states day pay, walk-in dispatch, or second-chance hiring."
+    }
+  ]
+}

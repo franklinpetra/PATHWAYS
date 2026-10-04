@@ -190,7 +190,7 @@ export interface OccupationWage extends SourceColumns {
 export interface SteppingStone extends SourceColumns {
   id: string;
   source_record_id: string;
-  kind: "pre_apprenticeship" | "returnship" | "transitional_employment" | "paid_training" | "job_training" | "support_service" | "second_chance_employer";
+  kind: "pre_apprenticeship" | "returnship" | "transitional_employment" | "paid_training" | "job_training" | "support_service" | "second_chance_employer" | "staffing_agency";
   name: string;
   organization: string | null;
   summary: string | null;
