@@ -18,6 +18,7 @@ export const AUDIENCES = [
   "experiencing_homelessness",
   "tanf_recipients",
   "tribal_members",
+  "internationally_trained",
 ] as const;
 export type Audience = (typeof AUDIENCES)[number];
 

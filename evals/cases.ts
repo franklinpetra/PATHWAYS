@@ -130,4 +130,45 @@ export const CASES: EvalCase[] = [
       { id: "tradeoffs", text: "Names trade-offs such as pension, schedule, or job security" },
     ],
   },
+  {
+    id: "foreign-doctor",
+    prompt:
+      "I'm a physician trained in Nigeria with 10 years of practice. I just moved to Seattle with a green card. How can I practice medicine here, and what can I do for work in the meantime?",
+    criteria: [
+      {
+        id: "img-license",
+        text: "Explains the Washington Medical Commission's International Medical Graduates Clinical Experience license, which requires ECFMG certification, passing USMLE Step 1 and Step 2, and an approved practice agreement with a supervising physician",
+      },
+      { id: "full-license", text: "Explains that full, unrestricted licensure generally runs through U.S. residency, without implying the person can practice independently now" },
+      { id: "bridge", text: "Suggests paid bridge roles that use medical training without a physician license (e.g., medical assistant, clinical research coordinator, medical scribe) and names their gates" },
+      { id: "navigation", text: "Points to the Puget Sound Welcome Back Center at Highline College or a similar navigation service for internationally trained professionals" },
+      { id: "pay", text: "Gives sourced Washington wages for at least one bridge role" },
+      { id: "respect", text: "Treats 10 years of practice as real expertise, without deficit language" },
+    ],
+  },
+  {
+    id: "returning-engineer",
+    prompt: "I'm a mom who left software engineering 6 years ago to raise my kids. I live in Bellevue. How do I get back into tech?",
+    criteria: [
+      { id: "returnship", text: "Explains returnships and names a way to find them, such as Path Forward's returnship directory" },
+      { id: "wa-wages", text: "Gives sourced Washington wages for software roles" },
+      { id: "refresh", text: "Recommends a targeted, low-cost skills refresh tied to current roles, without upselling a degree or bootcamp" },
+      { id: "gap", text: "Gives a concrete, respectful way to present the six-year gap" },
+      { id: "first-steps", text: "Breaks the restart into small steps for this week" },
+    ],
+  },
+  {
+    id: "high-schooler",
+    prompt: "I'm 16 and a junior in high school in Spokane. I want to get into the trades and start earning money. What can I do now?",
+    criteria: [
+      {
+        id: "now-vs-later",
+        text: "Separates what a 16-year-old can do now (high-school pre-apprenticeship, skills center, part-time job) from registered apprenticeship, without promising apprenticeship entry before 18 unless a source says a program accepts 16- and 17-year-olds",
+      },
+      { id: "local-program", text: "Names a specific Spokane-area program open to high school students, such as NEWTech Skills Center or a pre-apprenticeship on L&I's recognized list" },
+      { id: "teen-rules", text: "Covers Washington work rules for 16- and 17-year-olds, such as parent/school authorization or school-week hour limits" },
+      { id: "pay", text: "Gives sourced wages for apprentices or the target trade" },
+      { id: "first-steps", text: "Gives concrete first steps, such as talking to a school counselor or contacting a named program" },
+    ],
+  },
 ];

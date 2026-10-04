@@ -74,7 +74,7 @@ const lookupParamsSchema = z.object({
   audiences: z
     .array(z.enum(AUDIENCES))
     .describe(
-      "Only what the person says about themselves: 'women' (they say they're a woman, mom, etc.), 'youth' (in high school or under 21), 'young_adults' (they give an age from 18 to 29), 'veterans', 'returning_citizens' (released from prison or jail, or has a record), 'returning_parents' (back to work after time caregiving), 'experiencing_homelessness', 'tanf_recipients' (they receive TANF or WorkFirst), 'tribal_members'. Never infer from a name or anything they didn't say. Empty if none.",
+      "Only what the person says about themselves: 'women' (they say they're a woman, mom, etc.), 'youth' (in high school or under 21), 'young_adults' (they give an age from 18 to 29), 'veterans', 'returning_citizens' (released from prison or jail, or has a record), 'returning_parents' (back to work after time caregiving), 'experiencing_homelessness', 'tanf_recipients' (they receive TANF or WorkFirst), 'tribal_members', 'internationally_trained' (their degree, training, or license is from another country). Never infer from a name or anything they didn't say. Empty if none.",
     ),
   financial_urgency: z
     .boolean()

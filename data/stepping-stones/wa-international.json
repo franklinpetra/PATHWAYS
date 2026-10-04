@@ -1,0 +1,77 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Next steps for people whose education, training, or license is from another country. These are support services that appear beside routes for people who say they trained abroad.",
+      "The WMC's 2026 pilot (full licensure for primary care) applies only to people who held a Clinical Experience License before July 1, 2026, so it is not drafted as a record; the license itself is.",
+      "WES is one of several credential evaluators. Licensing boards each name the evaluators they accept, so the app should tell people to check with their board before paying for an evaluation.",
+      "Every quote is re-checked against its live page on each sync. Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these records."
+    ]
+  },
+  "programs": [
+    {
+      "id": "puget-sound-welcome-back-center",
+      "kind": "support_service",
+      "name": "Puget Sound Welcome Back Center (Highline College)",
+      "organization": "Highline College",
+      "summary": "Counseling and educational programs for internationally trained professionals living in Washington who want to re-enter their profession in the U.S., including orientation, help navigating the licensing process, and support to work in the U.S. It started with health professionals and now serves all fields.",
+      "audiences": ["internationally_trained"],
+      "fields": [],
+      "paid": null,
+      "city": "Des Moines",
+      "statewide": true,
+      "website": "https://welcomeback.highline.edu/",
+      "source": { "name": "Puget Sound Welcome Back Center: About", "url": "https://welcomeback.highline.edu/about/", "authority": "Highline College" },
+      "quotes": [
+        "will offer counseling and educational programs to internationally trained professionals currently residing in Washington state so that they may re-enter their profession in the U.S.",
+        "This includes assistance in orientation, navigating the licensing process and support to work in the U.S.",
+        "In 2015, we expanded our services to support all internationally professionals navigate the system and find appropriate employment in this field."
+      ]
+    },
+    {
+      "id": "wmc-img-clinical-experience-license",
+      "kind": "support_service",
+      "name": "International Medical Graduates Clinical Experience License (Washington Medical Commission)",
+      "organization": "Washington Medical Commission",
+      "summary": "A limited license that lets qualified international medical graduates practice medicine under an approved practice agreement with a supervising physician while preparing for residency. It requires ECFMG certification and passing USMLE Step 1 and Step 2; it's issued for two years and can be renewed up to three times.",
+      "audiences": ["internationally_trained"],
+      "fields": ["healthcare"],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://wmc.wa.gov/licensing/applications-and-forms/international-medical-graduates-clinical-experience-license",
+      "source": {
+        "name": "WMC: International Medical Graduates Clinical Experience License",
+        "url": "https://wmc.wa.gov/licensing/applications-and-forms/international-medical-graduates-clinical-experience-license",
+        "authority": "Washington Medical Commission"
+      },
+      "quotes": [
+        "This limited license allows IMGs to practice medicine under an approved practice agreement while preparing for residency or other advanced training opportunities.",
+        "Hold a valid ECFMG certification.",
+        "Successfully pass USMLE Step 1 and Step 2",
+        "Have an approved practice agreement filed with the Washington Medical Commission before beginning practice.",
+        "The license is initially issued for a two years after issuance and may be renewed up to three (3) times."
+      ]
+    },
+    {
+      "id": "wes-credential-evaluation",
+      "kind": "support_service",
+      "name": "World Education Services (WES) credential evaluation",
+      "organization": "World Education Services",
+      "summary": "A credential evaluation service whose reports describe international education to licensing boards, academic institutions, and employers, for education, immigration, licensing, and employment needs.",
+      "audiences": ["internationally_trained"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.wes.org/evaluations-and-fees/",
+      "source": { "name": "World Education Services", "url": "https://www.wes.org/", "authority": "World Education Services" },
+      "quotes": [
+        "Our verified reports communicate your educational accomplishments to licensing boards, academic institutions, and employers.",
+        "We offer best-in-class credential evaluation services to meet education, immigration, licensing, and employment needs."
+      ]
+    }
+  ]
+}

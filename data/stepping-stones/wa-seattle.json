@@ -1,0 +1,59 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Seattle/King County programs, from official listings or the program's own site.",
+      "ANEW's own website renders only in a browser, so its quotes can't be re-checked automatically. This record uses ANEW's official Career Bridge listing (Washington Workforce Board) instead. ANEW also appears in L&I's recognized pre-apprenticeship list; this record adds the program's hours, audiences, and certifications.",
+      "Cost is not stated for ANEW: ANEW describes its training as free while Career Bridge lists a tuition figure. Please confirm with ANEW before we state either.",
+      "Apprenti is already in the L&I registered-apprenticeship data (with wages); this record adds how it works for career seekers.",
+      "Every quote is re-checked against its live page on each sync. Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these records."
+    ]
+  },
+  "programs": [
+    {
+      "id": "anew-trades-rotation",
+      "kind": "pre_apprenticeship",
+      "name": "ANEW Trades Rotation Pre-Apprenticeship",
+      "organization": "ANEW (Apprenticeship & Nontraditional Employment for Women)",
+      "summary": "A 280-hour pre-apprenticeship recognized by the Washington State Apprenticeship Training Council that helps women gain the skills to enter apprenticeships in construction or transportation. It's part-time so participants can keep working, and includes OSHA 10, forklift, and road flagging certifications. Its target audiences include people in low-wage industries, formerly incarcerated people, women, people of color, and veterans.",
+      "audiences": ["women", "returning_citizens", "veterans"],
+      "fields": ["construction", "logistics"],
+      "paid": null,
+      "city": "Tukwila",
+      "statewide": false,
+      "website": "https://careerbridge.wa.gov/learn/program/3327",
+      "source": {
+        "name": "Career Bridge: ANEW Trades Rotation Pre-Apprenticeship",
+        "url": "https://careerbridge.wa.gov/learn/program/3327",
+        "authority": "Washington Workforce Training and Education Coordinating Board"
+      },
+      "quotes": [
+        "ANEW's construction pre-apprenticeship program is 280 hours of training that has been recognized by the Washington State Apprenticeship Training Council.",
+        "The Trades Rotation Program (TRP) is a pre-apprenticeship that assists women in gaining the skills to successfully enter an apprenticeship in construction or transportation fields.",
+        "Our target audiences include people working in low-wage industries, formerly incarcerated, women, people of color, and veterans.",
+        "It is designed as a part-time program so participants can find or keep employment while in class",
+        "Students also gain OSHA 10, forklift operation and road flagging certifications."
+      ]
+    },
+    {
+      "id": "apprenti-tech-apprenticeships",
+      "kind": "paid_training",
+      "name": "Apprenti tech apprenticeships",
+      "organization": "Apprenti",
+      "summary": "Registered tech apprenticeships that give career seekers paid, on-the-job training, whether they are just starting out, switching careers, or growing their skills.",
+      "audiences": [],
+      "fields": ["technology"],
+      "paid": true,
+      "city": "Seattle",
+      "statewide": true,
+      "website": "https://apprenticareers.org/",
+      "source": { "name": "Apprenti", "url": "https://apprenticareers.org/", "authority": "Apprenti" },
+      "quotes": [
+        "Apprenti connects employers with motivated talent and provides career seekers with paid, on-the-job training.",
+        "whether you’re just starting out, switching careers, or looking to grow your skills"
+      ]
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2024-10-01",
     "notes": [
       "Fast-hire options in Tacoma/Pierce County for people who need income this week. They appear beside training routes as help, never as a career route.",
       "Rule applied: included only where the organization's own website states day pay, walk-in dispatch, or second-chance hiring. Aggregator 'felony-friendly' lists were not accepted as evidence.",
