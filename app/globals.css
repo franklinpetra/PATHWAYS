@@ -39,8 +39,6 @@
 
   /* Typography */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  /* Headlines only: an editorial serif that gives the product its voice. */
-  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
   /* Small metadata only: badges, dates, counts. */
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -174,12 +172,15 @@
     @apply inline-flex items-center rounded-full border border-border px-2 py-px font-mono text-[11px] lowercase;
   }
 
-  /* Editorial headlines in the display serif: large, tight, and balanced. */
+  /* Headlines: Inter set large, tight, and balanced, so the page keeps one type family. */
   .display {
-    @apply font-display text-[2.75rem] leading-[1] font-normal tracking-[-0.02em] text-balance sm:text-[4.25rem];
+    @apply text-[2.5rem] leading-[1.04] font-semibold tracking-[-0.035em] text-balance sm:text-[3.5rem];
   }
   .display-sm {
-    @apply font-display text-[1.75rem] leading-[1.08] font-normal tracking-[-0.015em] text-balance sm:text-[2.25rem];
+    @apply text-[1.625rem] leading-[1.15] font-semibold tracking-[-0.025em] text-balance sm:text-[2rem];
+  }
+  .display-xs {
+    @apply text-[1.375rem] leading-tight font-semibold tracking-[-0.02em] sm:text-[1.625rem];
   }
   /* Small uppercase section labels. */
   .eyebrow {

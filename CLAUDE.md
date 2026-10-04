@@ -13,7 +13,7 @@
 ## Visual Language
 - Mobile-first, sparse, elegant[cite: 3, 4]. Readers should get the answer in seconds: replies lead with a two-to-three sentence answer, and each headed section after it renders collapsed (`components/chat/MessageText.tsx`). Sources collapse to one "N verified sources" line.
 - Palette "Evergreen & Dawn" (tokens in `app/globals.css`): warm paper background (`#F5F3EE`), evergreen ink type (`#14231C`), subtle borders (`#E3DFD6`). Forest (`#1B6040`) for primary actions, active text, and focus rings; leaf (`#6BBA16`) only for decoration, since it is too light for text; dawn amber (`#A8551A`) sparingly, for progress, wins, due dates, and "you are here". A faint dawn glow at the top of the page is the only ornament.
-- Type: Instrument Serif for headlines (`font-display`, `.display`, `.display-sm`), Inter for everything else, Geist Mono for small metadata.
+- Type: Inter throughout, with headlines set semibold and tight (`.display`, `.display-sm`, `.display-xs`); Geist Mono for small metadata only.
 - Controls: pill-shaped buttons and inputs with subtle borders and flat fills, via the shared `btn`, `field`, `notice`, `badge`, and `eyebrow` classes.
 - Logo: `components/brand/Logo.tsx` (mark image + forest wordmark), with a CSS fade-and-glide entrance on first load only.
 - The workspace centers on Chat, with a compact "Your plan" (Next Steps, Recent Wins): a sidebar on wide screens, a fold-out panel under the title on phones. Any progress visual must stay personal and calm, never a gamified bar or thermometer.

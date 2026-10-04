@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: PageProps) {
         <main className="mx-auto w-full max-w-6xl flex-1 px-gutter pt-14 pb-section sm:pt-24">
           <div className="max-w-2xl">
             <h1 className="display">
-              Where do you want to go <em className="text-forest">next?</em>
+              Where do you want to go <span className="text-forest">next?</span>
             </h1>
             <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted-foreground">
               Think out loud. We&apos;ll check the facts, do the math, and map your next steps.

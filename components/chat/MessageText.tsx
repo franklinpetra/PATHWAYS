@@ -53,7 +53,7 @@ function renderInline(text: string, cite: CiteProps): ReactNode[] {
   });
 }
 
-type Block = { kind: "p" | "ul" | "ol" | "h" | "table"; lines: string[] };
+type Block = { kind: "p" | "ul" | "ol" | "h" | "table"; lines: string[]; level?: number };
 
 function toBlocks(text: string): Block[] {
   const blocks: Block[] = [];
@@ -78,18 +78,18 @@ function toBlocks(text: string): Block[] {
     }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
     const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    const heading = line.match(/^\s*#{1,6}\s+(.*)$/);
+    const heading = line.match(/^\s*(#{1,6})\s+(.*)$/);
     const [kind, content]: [Block["kind"], string] = bullet
       ? ["ul", bullet[1]]
       : numbered
         ? ["ol", numbered[1]]
         : heading
-          ? ["h", heading[1]]
+          ? ["h", heading[2]]
           : ["p", line.trim()];
 
     const last = blocks[blocks.length - 1];
     if (last && last.kind === kind && kind !== "h" && last.lines.length > 0) last.lines.push(content);
-    else blocks.push({ kind, lines: [content] });
+    else blocks.push({ kind, lines: [content], ...(heading && { level: heading[1].length }) });
   }
   return blocks.filter((b) => b.lines.length > 0);
 }
@@ -99,7 +99,7 @@ const cells = (row: string) => row.replace(/^\s*\||\|\s*$/g, "").split("|").map(
 function BlockView({ block, cite }: { block: Block; cite: CiteProps }) {
   switch (block.kind) {
     case "h":
-      return <p className="font-semibold">{renderInline(block.lines[0], cite)}</p>;
+      return <p className="pt-1 font-semibold">{renderInline(block.lines[0], cite)}</p>;
     case "table": {
       const [head, ...rows] = block.lines.map(cells);
       return (
@@ -159,11 +159,19 @@ interface Section {
   blocks: Block[];
 }
 
-/** The lead (before any heading), then one section per heading. */
+/** "1. What to sell" -> "What to sell": the sections already read in order. */
+const unnumbered = (heading: string) => heading.replace(/^\s*(\d+[.)]|step\s+\d+[:.])\s+/i, "");
+
+/**
+ * The lead (before any heading), then one section per top-level heading. Headings deeper
+ * than the shallowest one in the reply stay inside their section as subheadings.
+ */
 function toSections(blocks: Block[]): Section[] {
+  const top = Math.min(...blocks.filter((b) => b.kind === "h").map((b) => b.level ?? 1));
   const sections: Section[] = [{ heading: null, blocks: [] }];
   for (const block of blocks) {
-    if (block.kind === "h") sections.push({ heading: block.lines[0], blocks: [] });
+    const opensSection = block.kind === "h" && (block.level ?? 1) <= top;
+    if (opensSection) sections.push({ heading: unnumbered(block.lines[0]), blocks: [] });
     else sections[sections.length - 1].blocks.push(block);
   }
   return sections.filter((s) => s.heading !== null || s.blocks.length > 0);

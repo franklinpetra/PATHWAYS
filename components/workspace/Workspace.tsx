@@ -180,7 +180,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialTopics, s
       <section aria-label="Conversation" className="flex flex-col lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]">
         <div className="flex items-end justify-between gap-3 pt-5 pb-4 lg:pt-8 lg:pb-5">
           <div className="min-w-0">
-            <h1 className="font-display text-[1.6rem] leading-tight tracking-[-0.01em] lg:text-[2rem]">{pathway.title}</h1>
+            <h1 className="display-xs">{pathway.title}</h1>
             {pathway.current_question && <p className="mt-0.5 text-sm text-muted-foreground">{pathway.current_question}</p>}
           </div>
           {/* Phones: the plan folds into one button here instead of trailing the whole conversation. */}
