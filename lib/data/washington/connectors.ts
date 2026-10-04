@@ -35,7 +35,7 @@ export interface ConnectorResult<T> {
 type Read = ReturnType<typeof fieldReader>;
 
 export interface Connector<T> {
-  table: "apprenticeships" | "training_programs" | "occupations" | "places" | "occupation_wages";
+  table: "apprenticeships" | "training_programs" | "occupations" | "places" | "occupation_wages" | "stepping_stones";
   /** Upsert conflict target. */
   conflict: string;
   required: Record<string, readonly string[]>;
@@ -225,7 +225,7 @@ export const onetConnector: Connector<OccupationRow> = {
 // ---------------------------------------------------------------------------
 
 /** Sources loaded from CSV/TSV exports by scripts/seed-washington.ts. */
-export type ConnectorKey = Exclude<SourceKey, "esd_oews">;
+export type ConnectorKey = Exclude<SourceKey, "esd_oews" | "lni_prep">;
 
 export const CONNECTORS = {
   arts: artsConnector,

@@ -76,6 +76,7 @@ export async function GET() {
     tableCheck("places"),
     tableCheck("occupations"),
     tableCheck("credentials"),
+    tableCheck("stepping_stones"),
     ...SYNC_SOURCES.map(syncCheck),
   ]);
   const checks = results.flatMap((r): Check[] =>

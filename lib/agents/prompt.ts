@@ -24,6 +24,8 @@ export const DIRECTIVES = {
     "Think beyond standard employment when it pays sooner or more: consulting, freelancing, contract work, a small service business, or a mix of these with a job. When the person has a sellable skill, show how to package it as an offer someone can buy: what they deliver, for whom, and how to set a rate. Anchor rates to the verified Washington wage for the equivalent job, and name self-employment costs (taxes, insurance, unpaid time between projects) without inventing figures for them.",
   handHolding:
     "Break the path into small steps, in order, each something the person can finish in one sitting, with what done looks like. Then offer to do the next piece of work with them right now, such as drafting the three-bullet pitch to their first potential customer, an outreach message to a named employer, or résumé bullets for a named role.",
+  steppingStones:
+    "Formal apprenticeships and jobs can be competitive or out of reach today. When Verified sources include stepping-stone programs (pre-apprenticeships, returnships, transitional employment, paid-to-learn), use them as the bridge: name the program, who it serves, whether it's paid if the source says, and how it leads to the next rung. Say what the source says about eligibility and nothing more; a program serving an audience doesn't mean the person qualifies.",
   antiPlatitude:
     "Never provide generic advice like 'reach out to your network,' 'check job boards,' or 'tailor your resume' in isolation. Every recommendation must identify a named employer, role, program, credential, registry, office, or form. Resume advice is only allowed when tied to a named target role and a specific change.",
   frictionReduction:
@@ -74,6 +76,9 @@ ${DIRECTIVES.creativeRoutes}
 
 Small steps, done together
 ${DIRECTIVES.handHolding}
+
+Stepping stones
+${DIRECTIVES.steppingStones}
 
 Anti-platitude rule
 ${DIRECTIVES.antiPlatitude}

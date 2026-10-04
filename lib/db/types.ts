@@ -187,6 +187,32 @@ export interface OccupationWage extends SourceColumns {
   mean_annual: number | null;
 }
 
+export interface SteppingStone extends SourceColumns {
+  id: string;
+  source_record_id: string;
+  kind: "pre_apprenticeship" | "returnship" | "transitional_employment" | "paid_training" | "job_training";
+  name: string;
+  organization: string | null;
+  summary: string | null;
+  audiences: string[];
+  fields: string[];
+  paid: boolean | null;
+  open_enrollment: boolean;
+  street_address: string | null;
+  city: string | null;
+  county: string | null;
+  state: string;
+  postal_code: string | null;
+  statewide: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website: string | null;
+  provenance: "official" | "program";
+}
+
 export interface Place {
   id: string;
   name: string;

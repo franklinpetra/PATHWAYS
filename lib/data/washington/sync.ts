@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { ARTS_DATASET_PAGE, ARTS_DATASETS, artsDownloadUrl, joinArtsOpenData } from "./arts-open-data";
+import curatedPacket from "../../../data/stepping-stones/wa-curated.json";
+import { CURATED_PREFIX, curatedRows } from "./curated-stepping-stones";
 import { joinCensusPlaces, placeByCountyUrl, gazetteerUrl } from "./census-places";
 import { parseDelimited } from "./csv";
 import { ESD_OEWS_PAGE, parseEsdWages } from "./esd-wages";
+import { LNI_PREP_PAGE, parseLniPrepPrograms } from "./lni-prep-programs";
 import { loadRows } from "./load";
 import { SOURCES, makeStamp } from "./sources";
 
@@ -14,8 +17,8 @@ import { SOURCES, makeStamp } from "./sources";
  * aborts before anything is written, so a bad day at a source never empties a table.
  */
 
-export type SyncSource = "apprenticeships" | "wages" | "places";
-export const SYNC_SOURCES: readonly SyncSource[] = ["apprenticeships", "wages", "places"];
+export type SyncSource = "apprenticeships" | "wages" | "places" | "stepping_stones";
+export const SYNC_SOURCES: readonly SyncSource[] = ["apprenticeships", "wages", "places", "stepping_stones"];
 
 export interface SyncResult {
   source: SyncSource;
@@ -174,11 +177,70 @@ export async function syncPlaces(client: SupabaseClient | null, opts: SyncOption
 }
 
 // ---------------------------------------------------------------------------
+// Stepping stones: L&I's recognized apprenticeship preparation programs (official page),
+// plus reviewed curated programs whose quotes still appear on their own pages
+// ---------------------------------------------------------------------------
+
+export async function syncSteppingStones(client: SupabaseClient | null, opts: SyncOptions = {}): Promise<SyncResult> {
+  const html = await (await get(LNI_PREP_PAGE)).text();
+  // The page has no published date; the as-of date is the day it was read.
+  const asOf = new Date().toISOString().slice(0, 10);
+  const stamp = makeStamp("lni_prep", { sourceUrl: LNI_PREP_PAGE, asOf });
+  const { rows: official, skipped } = parseLniPrepPrograms(html, stamp);
+  const curated = await curatedRows(curatedPacket, async (url) => (await get(url)).text(), asOf);
+  const rows = [...official, ...curated.rows];
+  const summary = [
+    `${SOURCES.lni_prep.sourceName} (L&I page, read ${asOf})`,
+    `${official.length} programs, ${official.filter((r) => !r.open_enrollment).length} not open for public enrollment`,
+    ...skipped,
+    `Curated programs: ${curated.rows.length} loaded`,
+    ...curated.notes,
+  ];
+  if (opts.dryRun || !client) {
+    if (rows.length === 0) throw new Error("No programs found on L&I's page.");
+    return { source: "stepping_stones", asOf, written: 0, removed: 0, summary, dryRun: true };
+  }
+
+  // County and coordinates come from the Census places table, so programs match by distance.
+  const cities = [...new Set(rows.map((r) => r.city).filter((c): c is string => !!c))];
+  const { data: places, error: placesError } = await client
+    .from("places")
+    .select("name, county, latitude, longitude")
+    .in("name", cities);
+  if (placesError) throw new Error(`Looking up program locations failed: ${placesError.message}`);
+  type PlaceRow = { name: string; county: string | null; latitude: number; longitude: number };
+  const byCity = new Map(((places ?? []) as PlaceRow[]).map((p) => [p.name.toLowerCase(), p]));
+  for (const row of rows) {
+    const place = row.city ? byCity.get(row.city.toLowerCase()) : undefined;
+    row.county ??= place?.county ?? null;
+    row.latitude = place?.latitude ?? null;
+    row.longitude = place?.longitude ?? null;
+  }
+
+  guardPartial("stepping_stones", official.length, await existingCount(client, "stepping_stones", SOURCES.lni_prep.sourceName));
+  const written = await loadRows(client, { table: "stepping_stones", conflict: "source_name,source_record_id" }, rows);
+  // Programs L&I no longer recognizes are removed.
+  const { count, error } = await client
+    .from("stepping_stones")
+    .delete({ count: "exact" })
+    .eq("source_name", SOURCES.lni_prep.sourceName)
+    .not("source_record_id", "in", `(${official.map((r) => r.source_record_id).join(",")})`);
+  if (error) throw new Error(`Removing programs L&I no longer lists failed: ${error.message}`);
+  // Curated programs that are no longer reviewed or verifiable are removed too.
+  let stale = client.from("stepping_stones").delete({ count: "exact" }).like("source_record_id", `${CURATED_PREFIX}%`);
+  if (curated.rows.length) stale = stale.not("source_record_id", "in", `(${curated.rows.map((r) => `"${r.source_record_id}"`).join(",")})`);
+  const { count: curatedRemoved, error: curatedError } = await stale;
+  if (curatedError) throw new Error(`Removing unverified curated programs failed: ${curatedError.message}`);
+  return { source: "stepping_stones", asOf, written, removed: (count ?? 0) + (curatedRemoved ?? 0), summary, dryRun: false };
+}
+
+// ---------------------------------------------------------------------------
 
 const SYNCS: Record<SyncSource, (client: SupabaseClient | null, opts?: SyncOptions) => Promise<SyncResult>> = {
   apprenticeships: syncApprenticeships,
   wages: syncWages,
   places: syncPlaces,
+  stepping_stones: syncSteppingStones,
 };
 
 /** Runs one refresh and records it in data_sync_runs, whether it succeeds or fails. */

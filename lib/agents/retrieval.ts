@@ -8,6 +8,7 @@ import {
   findOccupationWages,
   findOccupations,
   findPlace,
+  listOpenSteppingStones,
   searchApprenticeships,
   searchCredentials,
   searchTrainingPrograms,
@@ -15,6 +16,7 @@ import {
 import type { Apprenticeship, ContextItem, Occupation, Place, SourceColumns, TrainingProgramMatch } from "@/lib/db/types";
 import type { SourceAttribution } from "@/lib/workspace/events";
 import { supportedClaims } from "./grounding";
+import { AUDIENCES, fieldsForSocCodes, matchSteppingStones, steppingStoneClaim } from "./stepping-stones";
 import { incomeGapClaim, incomeTarget, incomeTargetClaim, localWages, payTransparencyClaim, wageClaim } from "./income";
 import { OFFICIAL_FACTS_PROMPT, OFFICIAL_SOURCES, officialFactsSchema, verifyOfficialFacts, type OfficialClaim } from "./official-sources";
 import { STATE_APPRENTICESHIP_OFFICE } from "./prompt";
@@ -69,6 +71,11 @@ const lookupParamsSchema = z.object({
     .number()
     .nullable()
     .describe("Their stated monthly rent or mortgage in US dollars, e.g. '$5K rent' -> 5000. Null if not stated."),
+  audiences: z
+    .array(z.enum(AUDIENCES))
+    .describe(
+      "Only what the person says about themselves: 'women' (they say they're a woman, mom, etc.), 'youth' (in high school or under 21), 'young_adults' (they give an age from 18 to 29), 'veterans', 'returning_citizens' (released from prison or jail, or has a record), 'returning_parents' (back to work after time caregiving), 'experiencing_homelessness', 'tanf_recipients' (they receive TANF or WorkFirst), 'tribal_members'. Never infer from a name or anything they didn't say. Empty if none.",
+    ),
   financial_urgency: z
     .boolean()
     .describe("True if they say they urgently need money, are at risk of losing housing, or can't cover basics."),
@@ -95,7 +102,7 @@ Extract only what is stated or recorded, or what their described skills point to
 export interface SourcedClaim {
   /** Stable reference, e.g. "program:<uuid>" or "occupation:29-1141.00". */
   id: string;
-  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official" | "income" | "wage";
+  kind: "occupation" | "program" | "apprenticeship" | "licensure" | "official" | "income" | "wage" | "stepping_stone";
   statement: string;
   source: SourceAttribution;
   /** Present when the source gives a street address. */
@@ -189,10 +196,19 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
         .filter(Boolean),
     ),
   ].slice(0, MAX_OCCUPATION_PHRASES);
-  if (!params.needs_lookup || phrases.length === 0) return { claims: targetClaims, notes: [] };
+  if (!params.needs_lookup || (phrases.length === 0 && params.audiences.length === 0)) return { claims: targetClaims, notes: [] };
 
   const notes: string[] = [];
   const { place, county } = await resolveLocation(params.location, notes);
+  // Stepping stones need only an audience or a field, so they're found even with no occupation named.
+  const openStones = await listOpenSteppingStones();
+  const stones = (fields: string[]) =>
+    matchSteppingStones(openStones, { fields, audiences: params.audiences, county, origin: place }).map(steppingStoneClaim);
+  if (phrases.length === 0) {
+    const found = stones([]);
+    notes.push(`Stepping-stone program search for ${params.audiences.join(", ")}: ${count(found.length)}.`);
+    return { claims: supportedClaims([...targetClaims, ...found], today).claims, notes };
+  }
   const radius = place ? clampRadius(params.radius_miles) : null;
 
   const matched = await Promise.all(phrases.map((p) => findOccupations(p)));
@@ -220,6 +236,7 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
   ]);
   const licensure = licensureClaims(credentials, today);
   const localRows = localWages(wageRows, area, MAX_WAGE_CLAIMS);
+  const stoneClaims = stones(fieldsForSocCodes(socCodes));
   const gap = target ? incomeGapClaim(target, localRows) : null;
   const wages = [...localRows.map((w) => wageClaim(w, target)), gap].filter((c): c is NonNullable<typeof c> => c !== null);
 
@@ -234,6 +251,7 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
     notes.push(`Washington wage search for ${field}${area === "Washington" ? " statewide" : ` in the ${area} area`}: ${count(wages.length)}.`);
   }
   notes.push(`Registered apprenticeship search for ${field}${county ? ` in ${county} County` : ""}: ${count(apprenticeships.length)}.`);
+  notes.push(`Stepping-stone program search (pre-apprenticeships and similar) for ${field}: ${count(stoneClaims.length)}.`);
   if (apprenticeships.length === 0) {
     notes.push(`No apprenticeship record found: unconfirmed, not proof none exist. Fallback: ${STATE_APPRENTICESHIP_OFFICE}.`);
   }
@@ -246,6 +264,7 @@ async function findTableFacts(params: LookupParams, today: string): Promise<{ cl
       ...occupations.map(occupationClaim),
       ...programs.map((p) => programClaim(p, place)),
       ...apprenticeships.map(apprenticeshipClaim),
+      ...stoneClaims,
       ...licensure.claims,
     ],
     today,

@@ -25,6 +25,10 @@ export const SOURCES = {
     sourceName: "O*NET OnLine",
     verificationAuthority: "U.S. Department of Labor, Employment and Training Administration",
   },
+  lni_prep: {
+    sourceName: "Recognized Apprenticeship Preparation Programs",
+    verificationAuthority: "Washington State Department of Labor & Industries",
+  },
   esd_oews: {
     sourceName: "Occupational Employment and Wage Estimates (OEWS)",
     verificationAuthority: "Washington State Employment Security Department",

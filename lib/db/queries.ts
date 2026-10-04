@@ -8,6 +8,7 @@ import type {
   Occupation,
   OccupationWage,
   PathwayRoute,
+  SteppingStone,
   Pathway,
   Place,
   ProgressEvent,
@@ -161,6 +162,12 @@ export async function findOccupationWages(socCodes: string[], areaName: string):
     .in("soc_code", socCodes)
     .in("area_name", [...new Set([areaName, "Washington"])]);
   return unwrap<OccupationWage[]>(res, "occupation wages");
+}
+
+/** Every open stepping-stone program; the table is small, so matching and ranking happen in code. */
+export async function listOpenSteppingStones(): Promise<SteppingStone[]> {
+  const res = await db().from("stepping_stones").select("*").eq("open_enrollment", true);
+  return unwrap<SteppingStone[]>(res, "stepping stones");
 }
 
 export async function findPlace(name: string, state = "WA"): Promise<Place | null> {

@@ -1,0 +1,110 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Each program's facts come from its own page (or a state agency page). Every quote is re-checked against the live page on each sync; a program whose quote disappears is skipped and reported, never shown stale.",
+      "Before approving: open each source URL, confirm the summary says nothing the quotes don't, and confirm 'paid' is true only where a quote says participants are paid.",
+      "FareStart and Year Up United describe their training as free/tuition-free; neither page says participants are paid, so 'paid' is null for both.",
+      "Path Forward is national; it is marked statewide so it can match anyone returning after a career break.",
+      "Set status to 'reviewed' and fill reviewed_by / reviewed_on to load these programs."
+    ]
+  },
+  "programs": [
+    {
+      "id": "farestart-job-training",
+      "kind": "job_training",
+      "name": "FareStart Job Training",
+      "organization": "FareStart",
+      "summary": "Free job training in food-based businesses, with case management and help with basic needs, for people overcoming poverty, homelessness, substance use disorder, incarceration, or other barriers to employment.",
+      "audiences": ["returning_citizens", "experiencing_homelessness"],
+      "fields": ["culinary"],
+      "paid": null,
+      "city": "Seattle",
+      "statewide": false,
+      "website": "https://www.farestart.org/job-training/",
+      "source": { "name": "FareStart: Job Training Programs", "url": "https://www.farestart.org/job-training/", "authority": "FareStart" },
+      "quotes": [
+        "FareStart’s free job training programs skill, reskill and upskill students so they are prepared for the career pathways of their choosing.",
+        "If you are overcoming poverty, homelessness, substance use disorder, incarceration or other barriers to employment, we can help."
+      ]
+    },
+    {
+      "id": "year-up-united-seattle",
+      "kind": "job_training",
+      "name": "Year Up United (Seattle)",
+      "organization": "Year Up United",
+      "summary": "Tuition-free job training for young adults aged 18-29, with hands-on experience and job placement support.",
+      "audiences": ["young_adults"],
+      "fields": ["technology"],
+      "paid": null,
+      "city": "Seattle",
+      "statewide": false,
+      "website": "https://www.yearup.org/locations/seattle-wa",
+      "source": { "name": "Year Up United: Job Training in Seattle, WA", "url": "https://www.yearup.org/locations/seattle-wa", "authority": "Year Up United" },
+      "quotes": [
+        "Designed for young adults aged 18-29, our flexible programs offer training through virtual and in-person engagements to equip you with the skills needed for full-time employment.",
+        "With tuition-free opportunities, you'll gain hands-on experience and professional development"
+      ]
+    },
+    {
+      "id": "pioneer-human-services-reentry",
+      "kind": "job_training",
+      "name": "Pioneer Human Services reentry training and employment",
+      "organization": "Pioneer Human Services",
+      "summary": "Reentry services across Washington for people transitioning from prison and jail, including job-readiness training (G.R.O.W. in Spokane) and an entrepreneurship program (INVEST in South Seattle).",
+      "audiences": ["returning_citizens"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://pioneerhumanservices.org/",
+      "source": { "name": "Pioneer Human Services", "url": "https://pioneerhumanservices.org/", "authority": "Pioneer Human Services" },
+      "quotes": [
+        "we provide comprehensive reentry services in Washington state for individuals transitioning from prison and jail",
+        "Training options include the Guiding Reentry Opportunities for Workforce Development (G.R.O.W.) job-readiness training program in Spokane and the Incarceration to New Ventures: Elevating Success Together (INVEST) entrepreneurship program in South Seattle"
+      ]
+    },
+    {
+      "id": "path-forward-returnships",
+      "kind": "returnship",
+      "name": "Path Forward returnship directory",
+      "organization": "Path Forward",
+      "summary": "A national directory and Returnship Matcher for people returning to work after a career break, including parents and other caregivers.",
+      "audiences": ["returning_parents"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.pathforward.org/",
+      "source": { "name": "Path Forward", "url": "https://www.pathforward.org/", "authority": "Path Forward" },
+      "quotes": [
+        "We provide resources specifically for people returning to work after a career break.",
+        "The programs overcome the hiring stigma that makes returning to work a tough road for parents and other caregivers."
+      ]
+    },
+    {
+      "id": "workfirst-career-jump",
+      "kind": "transitional_employment",
+      "name": "WorkFirst Community Jobs and Career Jump",
+      "organization": "Washington State Department of Social and Health Services (WorkFirst)",
+      "summary": "Paid work experience for WorkFirst participants; Career Jump places participants with an employer that has agreed to hire them at the end, above minimum wage.",
+      "audiences": ["tanf_recipients"],
+      "fields": [],
+      "paid": true,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.dshs.wa.gov/esa/chapter-8-paid-unpaid-employment/83-community-jobs",
+      "source": {
+        "name": "WorkFirst Handbook 8.3: Community Jobs",
+        "url": "https://www.dshs.wa.gov/esa/chapter-8-paid-unpaid-employment/83-community-jobs",
+        "authority": "Washington State Department of Social and Health Services"
+      },
+      "quotes": [
+        "Career Jump is a subset of Community Jobs, which offers participants an opportunity to gain paid work experience with an employer that has agreed to hire them at the end of their program.",
+        "the employment opportunity will be compensated above minimum wage"
+      ]
+    }
+  ]
+}
