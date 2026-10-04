@@ -170,17 +170,27 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
         </p>
       )}
       <NextSteps pathwayId={pathway.id} steps={steps} busy={panelBusy} onAction={runActions} />
-      <RecentWins
-        wins={wins}
-        candidates={candidates}
-        busy={panelBusy}
-        onAction={(actions) => runActions(actions)}
-        onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
-      />
     </>
   );
 
-  const planCount = steps.length + wins.length + candidates.length;
+  // Your Route and the wins along it: the big picture, kept just under the message box.
+  const hasRoute = !!(route?.confirmed_stops?.length || route?.suggested_stops?.length);
+  const journey =
+    hasRoute || wins.length > 0 || candidates.length > 0 ? (
+      <div className="mt-3 space-y-4 rounded-card border border-border bg-surface/70 px-4 py-3.5 lg:mb-4">
+        <YourRoute pathwayId={pathway.id} route={route} busy={panelBusy} onAction={(actions) => runActions(actions)} />
+        <RecentWins
+          variant="inline"
+          wins={wins}
+          candidates={candidates}
+          busy={panelBusy}
+          onAction={(actions) => runActions(actions)}
+          onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}
+        />
+      </div>
+    ) : null;
+
+  const planCount = steps.length;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col px-gutter pb-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-12">
@@ -205,8 +215,6 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
           </button>
         </div>
 
-        <YourRoute pathwayId={pathway.id} route={route} busy={panelBusy} onAction={(actions) => runActions(actions)} />
-
         <aside
           id="your-plan"
           aria-label="Your plan"
@@ -230,6 +238,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
             <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
             <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
           </div>
+          {journey}
         </div>
       </section>
 

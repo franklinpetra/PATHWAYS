@@ -44,7 +44,7 @@ export function YourRoute({ pathwayId, route, busy, onAction }: YourRouteProps) 
   const position = showSuggestion ? -1 : Math.min(route!.position, stops.length - 1);
 
   return (
-    <section aria-label={showSuggestion ? "Suggested route" : "Your route"} className="mb-4">
+    <section aria-label={showSuggestion ? "Suggested route" : "Your route"}>
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <h2 className="eyebrow">{showSuggestion ? "Suggested route" : "Your route"}</h2>
         {confirmed && suggested && !reviewing && (

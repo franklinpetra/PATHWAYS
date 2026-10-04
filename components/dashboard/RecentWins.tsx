@@ -20,11 +20,13 @@ interface RecentWinsProps {
   busy: boolean;
   onAction: (actions: UserAction[]) => void;
   onDismissCandidate: (candidate: WinCandidate) => void;
+  /** "inline" sits inside Your Route as "Wins along the way", without its own card. */
+  variant?: "card" | "inline";
 }
 
-export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidate }: RecentWinsProps) {
-  return (
-    <Card title="Recent wins" id="recent-wins-heading">
+export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidate, variant = "card" }: RecentWinsProps) {
+  const body = (
+    <>
       {candidates.length > 0 && (
         <div className="mb-3 rounded-2xl border border-dashed border-dawn/40 bg-dawn-tint p-3">
           <p className="text-xs font-medium text-dawn">Sounds like progress. Add it?</p>
@@ -72,7 +74,22 @@ export function RecentWins({ wins, candidates, busy, onAction, onDismissCandidat
           ))}
         </ul>
       )}
-    </Card>
+    </>
+  );
+  if (variant === "card") {
+    return (
+      <Card title="Recent wins" id="recent-wins-heading">
+        {body}
+      </Card>
+    );
+  }
+  return (
+    <section aria-labelledby="recent-wins-heading">
+      <h2 id="recent-wins-heading" className="eyebrow mb-2">
+        Wins along the way
+      </h2>
+      {body}
+    </section>
   );
 }
 
