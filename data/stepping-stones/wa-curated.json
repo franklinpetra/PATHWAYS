@@ -1,8 +1,8 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2026-10-03",
     "notes": [
       "Each program's facts come from its own page (or a state agency page). Every quote is re-checked against the live page on each sync; a program whose quote disappears is skipped and reported, never shown stale.",
       "Before approving: open each source URL, confirm the summary says nothing the quotes don't, and confirm 'paid' is true only where a quote says participants are paid.",
