@@ -1,8 +1,8 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2026-10-03",
     "notes": [
       "Next steps for people whose education, training, or license is from another country. These are support services that appear beside routes for people who say they trained abroad.",
       "The WMC's 2026 pilot (full licensure for primary care) applies only to people who held a Clinical Experience License before July 1, 2026, so it is not drafted as a record; the license itself is.",

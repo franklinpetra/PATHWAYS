@@ -1,8 +1,8 @@
 {
-  "status": "draft",
+  "status": "reviewed",
   "review": {
-    "reviewed_by": null,
-    "reviewed_on": null,
+    "reviewed_by": "Petra Franklin",
+    "reviewed_on": "2026-10-03",
     "notes": [
       "Seattle/King County programs, from official listings or the program's own site.",
       "ANEW's own website renders only in a browser, so its quotes can't be re-checked automatically. This record uses ANEW's official Career Bridge listing (Washington Workforce Board) instead. ANEW also appears in L&I's recognized pre-apprenticeship list; this record adds the program's hours, audiences, and certifications.",
