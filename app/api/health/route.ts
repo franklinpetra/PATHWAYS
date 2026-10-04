@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveModels } from "@/lib/ai/openrouter";
 import { SYNC_SOURCES, type SyncSource } from "@/lib/data/washington/sync";
 import { db } from "@/lib/db/supabase";
+import { voiceAvailable } from "@/lib/voice/openai";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,7 @@ export async function GET() {
     tableCheck("credentials"),
     tableCheck("stepping_stones"),
     ...SYNC_SOURCES.map(syncCheck),
+    voiceAvailable().then((v) => ({ name: "voice", ...v })),
   ]);
   const checks = results.flatMap((r): Check[] =>
     r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : [r.value]) : [{ name: "check", ok: false, detail: String(r.reason) }],

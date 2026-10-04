@@ -170,6 +170,45 @@ export async function listOpenSteppingStones(): Promise<SteppingStone[]> {
   return unwrap<SteppingStone[]>(res, "stepping stones");
 }
 
+// ---------------------------------------------------------------------------
+// Voice
+// ---------------------------------------------------------------------------
+
+export interface VoiceUsage {
+  transcribe_seconds: number;
+  speak_chars: number;
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export async function getVoiceUsage(userId: string): Promise<VoiceUsage | null> {
+  const res = await db()
+    .from("voice_usage")
+    .select("transcribe_seconds, speak_chars")
+    .eq("user_id", userId)
+    .eq("day", today())
+    .maybeSingle();
+  return unwrap<VoiceUsage | null>(res, "voice usage");
+}
+
+export async function addVoiceUsage(userId: string, seconds: number, chars: number): Promise<void> {
+  const res = await db().rpc("add_voice_usage", { p_user: userId, p_day: today(), p_seconds: seconds, p_chars: chars });
+  if (res.error) throw new Error(`Recording voice usage failed: ${res.error.message}`);
+}
+
+/** Whether `text` is the spoken line stored with one of this person's replies in this pathway. */
+export async function isStoredSpokenLine(userId: string, pathwayId: string, text: string): Promise<boolean> {
+  const res = await db()
+    .from("messages")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("pathway_id", pathwayId)
+    .eq("role", "assistant")
+    .eq("spoken", text)
+    .limit(1);
+  return unwrap<{ id: string }[]>(res, "spoken line").length > 0;
+}
+
 export async function findPlace(name: string, state = "WA"): Promise<Place | null> {
   const res = await db()
     .from("places")

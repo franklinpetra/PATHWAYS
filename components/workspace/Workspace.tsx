@@ -1,11 +1,14 @@
 "use client";
 
+import { Mic } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { MessageText } from "@/components/chat/MessageText";
 import { MessageToolbar, PlaceActions } from "@/components/chat/PlaceToolbar";
 import { SourceList, citationAnchor } from "@/components/chat/SourceList";
 import { SuggestedTopics } from "@/components/chat/SuggestedTopics";
+import { VoiceBar } from "@/components/chat/VoiceBar";
+import { useVoiceConversation } from "@/components/chat/useVoiceConversation";
 import { NextSteps } from "@/components/dashboard/NextSteps";
 import { RecentWins } from "@/components/dashboard/RecentWins";
 import { YourRoute } from "@/components/route/YourRoute";
@@ -25,6 +28,8 @@ export interface Message {
   citations?: Citation[];
   /** Figures in the reply that matched no verified source. */
   unverifiedFigures?: string[];
+  /** The person spoke this message. */
+  viaVoice?: boolean;
 }
 
 interface WorkspaceProps {
@@ -75,12 +80,12 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
     setMessages((all) => all.map((m) => (m.id === id ? update(m) : m)));
   }, []);
 
-  async function send(text: string) {
+  async function send(text: string, viaVoice = false) {
     if (streaming) return;
     const assistantId = crypto.randomUUID();
     setMessages((all) => [
       ...all,
-      { id: crypto.randomUUID(), role: "user", content: text, status: "done" },
+      { id: crypto.randomUUID(), role: "user", content: text, status: "done", viaVoice },
       { id: assistantId, role: "assistant", content: "", status: "streaming" },
     ]);
     setTopics([]);
@@ -89,7 +94,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
     abortRef.current = controller;
     try {
       await streamChatTurn(
-        { message: text, pathwayId: pathway.id },
+        { message: text, pathwayId: pathway.id, voice: viaVoice },
         (event) => {
           switch (event.type) {
             case "text":
@@ -113,6 +118,9 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
             case "wins":
               setWins(event.recent);
               setCandidates(event.candidates);
+              break;
+            case "spoken":
+              voice.say(event.text);
               break;
             case "route":
               setRoute(event.route);
@@ -158,6 +166,8 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
       setPanelBusy(false);
     }
   }
+
+  const voice = useVoiceConversation({ pathwayId: pathway.id, send: (text) => send(text, true) });
 
   const empty = messages.length === 0 && !sharedPlace;
 
@@ -235,8 +245,14 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
                 : "sticky bottom-0 -mx-gutter space-y-3 bg-background px-gutter pt-3 pb-4 lg:static lg:mx-0 lg:px-0"
             }
           >
-            <SuggestedTopics topics={topics} disabled={streaming} onPick={send} />
-            <Composer streaming={streaming} onSend={send} onStop={() => abortRef.current?.abort()} />
+            <SuggestedTopics topics={topics} disabled={streaming} onPick={(topic) => send(topic)} />
+            <VoiceBar state={voice.state} notice={voice.notice} onFinishTurn={voice.finishTurn} onEnd={voice.end} />
+            <Composer
+              streaming={streaming}
+              onSend={(text) => send(text)}
+              onStop={() => abortRef.current?.abort()}
+              voice={{ supported: voice.supported, active: voice.state !== "off", onStart: () => void voice.start() }}
+            />
           </div>
           {journey}
         </div>
@@ -296,7 +312,8 @@ function Thread({
 
       {messages.map((m) =>
         m.role === "user" ? (
-          <div key={m.id} className="flex justify-end">
+          <div key={m.id} className="flex items-end justify-end gap-1.5">
+            {m.viaVoice && <Mic className="mb-2 size-3.5 shrink-0 text-muted-foreground" aria-label="Spoken" />}
             <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-person px-4 py-2.5 text-[15px] leading-relaxed text-white">
               {m.content}
             </p>

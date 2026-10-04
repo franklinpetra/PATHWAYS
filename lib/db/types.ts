@@ -274,6 +274,10 @@ export interface StoredMessage {
   citations: unknown[];
   /** Figures in an assistant reply that matched no verified source. */
   unverified_figures: string[];
+  /** The short line spoken aloud for an assistant reply in a voice conversation. */
+  spoken: string | null;
+  /** Whether the person spoke this message (transcribed) rather than typed it. */
+  via_voice: boolean;
   created_at: string;
 }
 

@@ -13,6 +13,8 @@ const bodySchema = z
     message: z.string().trim().max(4000).nullish(),
     pathwayId: z.uuid().nullish(),
     userActions: z.array(userActionSchema).max(10).default([]),
+    /** The message was spoken; the reply also gets a short line to speak back. */
+    voice: z.boolean().default(false),
   })
   .refine((b) => Boolean(b.message) || b.userActions.length > 0, { message: "Send a message or an action." });
 
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
             message: body.message || null,
             pathwayId: body.pathwayId ?? null,
             userActions: body.userActions,
+            voice: body.voice,
             signal: req.signal,
           },
           emit,

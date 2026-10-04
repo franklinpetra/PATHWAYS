@@ -39,6 +39,8 @@ export type ChatEvent =
   | { type: "next_steps"; items: Action[] }
   | { type: "wins"; recent: ProgressEvent[]; candidates: WinCandidate[] }
   | { type: "route"; route: PathwayRoute | null }
+  /** Voice conversations: the short line to speak aloud for this reply. */
+  | { type: "spoken"; text: string }
   | { type: "error"; message: string }
   | { type: "done" };
 

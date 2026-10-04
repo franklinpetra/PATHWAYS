@@ -62,7 +62,7 @@ type ProgressEventInsert = Pick<
 
 type MessageInsert = Pick<
   StoredMessage,
-  "user_id" | "pathway_id" | "role" | "content" | "status" | "places" | "citations" | "unverified_figures"
+  "user_id" | "pathway_id" | "role" | "content" | "status" | "places" | "citations" | "unverified_figures" | "spoken" | "via_voice"
 >;
 
 type Mutation =
@@ -592,6 +592,10 @@ export interface MessageProposal {
   places?: unknown[];
   citations?: unknown[];
   unverifiedFigures?: string[];
+  /** Assistant only: the checked line spoken aloud. */
+  spoken?: string | null;
+  /** User only: the message was spoken and transcribed. */
+  viaVoice?: boolean;
 }
 
 /** Records one message. Only assistant replies may be 'interrupted' or carry places and citations. */
@@ -613,6 +617,10 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
   ) {
     return reject("user messages are always complete and carry no places, citations, or grounding flags");
   }
+  if (p.role === "user" && p.spoken) return reject("only assistant replies have a spoken line");
+  if (p.role === "assistant" && p.viaVoice) return reject("only the person's messages can be spoken by them");
+  const spoken = p.spoken?.trim() || null;
+  if (spoken && spoken.length > 600) return reject("spoken line is too long");
   return {
     mutations: [
       seal({
@@ -626,6 +634,8 @@ export function guardMessage(state: GuardState, p: MessageProposal): GuardResult
           places: p.places ?? [],
           citations: p.citations ?? [],
           unverified_figures: p.unverifiedFigures ?? [],
+          spoken,
+          via_voice: p.viaVoice ?? false,
         },
       }),
     ],

@@ -4,6 +4,8 @@ import type { ChatEvent, PanelsResponse } from "@/lib/workspace/events";
 export interface ChatRequest {
   message: string;
   pathwayId: string;
+  /** The message was spoken; the reply also gets a short line to speak back. */
+  voice?: boolean;
 }
 
 /** Posts a chat turn and calls `onEvent` for each NDJSON line as it arrives. */

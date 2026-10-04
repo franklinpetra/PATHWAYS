@@ -24,6 +24,7 @@ import { sanitizeTopics } from "@/lib/workspace/topics";
 import { findUnsupportedFigures } from "./grounding";
 import { proposeContextMutations } from "./memory";
 import { buildSystemPrompt } from "./prompt";
+import { FALLBACK_SPOKEN, SPOKEN_PROMPT, checkSpoken } from "@/lib/voice/persona";
 import { findFacts, type FactFindings } from "./retrieval";
 
 /**
@@ -46,6 +47,8 @@ export interface TurnInput {
   message: string | null;
   pathwayId: string | null;
   userActions: UserAction[];
+  /** A voice conversation: the message was spoken, and the reply gets a short spoken line. */
+  voice?: boolean;
   signal?: AbortSignal;
 }
 
@@ -94,7 +97,9 @@ async function converse(
     role: m.role,
     content: m.content,
   }));
-  await applyMutations(acceptedOrThrow(guardMessage(state, { role: "user", content: message, pathwayId })));
+  await applyMutations(
+    acceptedOrThrow(guardMessage(state, { role: "user", content: message, pathwayId, viaVoice: input.voice ?? false })),
+  );
 
   const [memory, facts] = await Promise.allSettled([
     proposeContextMutations({
@@ -172,10 +177,13 @@ async function converse(
     console.warn(`[grounding] reply contained unverified figures: ${unverifiedFigures.join(", ")}`);
     emit({ type: "grounding", unverifiedFigures });
   }
+  // Voice: the brain's verified reply goes to the transcript; the mouth speaks a short line about it.
+  const spoken = input.voice && reply.trim() ? await spokenLine(message, reply, findings.claims, personText, input.signal) : null;
+  if (spoken) emit({ type: "spoken", text: spoken });
   if (reply.trim()) {
     await commitQuietly(
       "reply",
-      guardMessage(state, { role: "assistant", content: reply, pathwayId, places, citations, unverifiedFigures }),
+      guardMessage(state, { role: "assistant", content: reply, pathwayId, places, citations, unverifiedFigures, spoken }),
     );
   }
 
@@ -316,4 +324,37 @@ async function proposeCandidates(args: {
       },
     ],
   });
+}
+
+// ---------------------------------------------------------------------------
+// Voice: the short line spoken aloud
+// ---------------------------------------------------------------------------
+
+const spokenSchema = z.object({ spoken: z.string().describe("What to say out loud, under 60 words.") });
+
+/** A checked, conversational line about the reply; falls back to a safe line if the model adds a figure or fails. */
+async function spokenLine(
+  message: string,
+  reply: string,
+  claims: FactFindings["claims"],
+  personText: string[],
+  signal?: AbortSignal,
+): Promise<string> {
+  try {
+    const { spoken } = await generateStructured({
+      name: "spoken_line",
+      schema: spokenSchema,
+      temperature: 0.7,
+      signal,
+      messages: [
+        { role: "system", content: SPOKEN_PROMPT },
+        { role: "user", content: `The person said:\n${message}\n\nThe written reply:\n${reply}` },
+      ],
+    });
+    return checkSpoken(spoken, { claims, reply, personText }) ?? FALLBACK_SPOKEN;
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.error("[orchestrator] spoken line failed", err);
+    return FALLBACK_SPOKEN;
+  }
 }

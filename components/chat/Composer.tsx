@@ -1,15 +1,17 @@
 "use client";
 
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Mic, Square } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 interface ComposerProps {
   streaming: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
+  /** Voice conversation: shown only where the browser supports it. */
+  voice?: { supported: boolean; active: boolean; onStart: () => void };
 }
 
-export function Composer({ streaming, onSend, onStop }: ComposerProps) {
+export function Composer({ streaming, onSend, onStop, voice }: ComposerProps) {
   const [text, setText] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -51,9 +53,14 @@ export function Composer({ streaming, onSend, onStop }: ComposerProps) {
         maxLength={4000}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="Think out loud…"
+        placeholder={voice?.supported ? "Think out loud… literally. Tap the mic to talk it through." : "Think out loud…"}
         className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-2 text-base leading-relaxed outline-none placeholder:text-muted-foreground/70 focus-visible:shadow-none focus-visible:outline-none"
       />
+      {voice?.supported && !voice.active && !streaming && !text.trim() && (
+        <button type="button" onClick={voice.onStart} aria-label="Talk it through with voice" className="btn btn-secondary btn-icon size-10">
+          <Mic className="size-4 text-forest" aria-hidden />
+        </button>
+      )}
       {streaming ? (
         <button
           type="button"
