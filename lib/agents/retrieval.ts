@@ -60,7 +60,7 @@ const lookupParamsSchema = z.object({
   occupations: z
     .array(z.string())
     .describe(
-      "Every occupation they name, plus each rung on the path they describe from entry job to goal, in plain words, e.g. 'pharmacy job now, pharmacist later' -> ['pharmacy aides', 'pharmacy technicians', 'pharmacists']. Up to 4. Empty if none.",
+      "Every occupation they name, plus each rung on the path they describe from entry job to goal, in plain words, e.g. 'pharmacy job now, pharmacist later' -> ['pharmacy aides', 'pharmacy technicians', 'pharmacists']. When they name only a broad field, list 2-3 common occupations in it, e.g. 'the trades' -> ['electricians', 'plumbers', 'carpenters'], 'healthcare' -> ['medical assistants', 'nursing assistants'], 'tech' -> ['software developers', 'computer user support specialists']. Up to 4. Empty if none.",
     ),
   skill_occupations: z
     .array(z.string())

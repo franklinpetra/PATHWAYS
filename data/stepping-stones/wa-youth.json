@@ -1,0 +1,53 @@
+{
+  "status": "draft",
+  "review": {
+    "reviewed_by": null,
+    "reviewed_on": null,
+    "notes": [
+      "Washington's work rules for 16- and 17-year-olds, for anyone who says they're in high school or under 18. Shown as a support service beside routes.",
+      "All wording comes from L&I's current pages. Washington's child labor rules changed on July 1, 2026, so older L&I news articles were not used.",
+      "The variance sentence uses L&I's exact framing: registered apprentices and student-learners in an approved CTE worksite learning program 'may be granted limited exemptions from some' prohibitions. It does not say a program lifts restrictions.",
+      "L&I's student-learner variance page confirms 16- and 17-year-olds can take part in Washington registered apprenticeship programs.",
+      "Every quote is re-checked against its live page on each sync. Set status to 'reviewed' and fill reviewed_by / reviewed_on to load this record."
+    ]
+  },
+  "programs": [
+    {
+      "id": "wa-teen-work-rules",
+      "kind": "support_service",
+      "name": "Washington work rules for 16- and 17-year-olds (L&I)",
+      "organization": "Washington State Department of Labor & Industries",
+      "summary": "Before a 16- or 17-year-old starts work, the employer needs a minor work permit endorsement and a parent/school authorization form signed by the employer, the teen, a school official, and a parent or guardian; the form expires every September 30 and must be renewed. During a school week, 16- and 17-year-olds may work up to 4 hours a day and 20 hours a week, between 7 a.m. and 10 p.m., or up to 28 hours with a special variance signed by a parent and school representative. Some duties are prohibited for minors; registered apprentices and student-learners in an approved CTE worksite learning program may be granted limited exemptions from some of those prohibitions. 16- and 17-year-olds can take part in Washington registered apprenticeship programs.",
+      "audiences": ["youth"],
+      "fields": [],
+      "paid": null,
+      "city": null,
+      "statewide": true,
+      "website": "https://www.lni.wa.gov/workers-rights/youth-employment/how-to-hire-minors",
+      "source": {
+        "name": "L&I: How to Hire Minors",
+        "url": "https://www.lni.wa.gov/workers-rights/youth-employment/how-to-hire-minors",
+        "authority": "Washington State Department of Labor & Industries"
+      },
+      "quotes": [
+        "Employers must have a current minor work permit endorsement for each location where minors are employed.",
+        "Parent/school authorization forms must be signed by the employer, the minor, an official from the minor's school, and the minor's parent or legal guardian.",
+        "All parent/school authorization forms expire each new school year on the 30th day of September and must be renewed annually.",
+        { "url": "https://www.lni.wa.gov/workers-rights/youth-employment/hours-of-work", "text": "School week 4 hours * 20 hours 6 days 7 a.m. - 10 p.m." },
+        { "url": "https://www.lni.wa.gov/workers-rights/youth-employment/hours-of-work", "text": "School week with special variance 6 hours * 28 hours" },
+        {
+          "url": "https://lni.wa.gov/workers-rights/youth-employment/variances",
+          "text": "Employers only need to have the minor’s parent or legal guardian and school representative sign the special variance section"
+        },
+        {
+          "url": "https://lni.wa.gov/workers-rights/youth-employment/prohibited-duties",
+          "text": "Registered apprenticeships and student-learners in an approved Career Technical Education (CTE) Worksite Learning program may be granted limited exemptions from some of these prohibitions."
+        },
+        {
+          "url": "https://lni.wa.gov/workers-rights/youth-employment/variances",
+          "text": "A student-learner variance allows 16- and 17-year-olds participating in a Washington State Registered Apprenticeship program"
+        }
+      ]
+    }
+  ]
+}

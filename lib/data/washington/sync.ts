@@ -6,6 +6,7 @@ import waFastHire from "../../../data/stepping-stones/wa-fast-hire.json";
 import waInternational from "../../../data/stepping-stones/wa-international.json";
 import waReentry from "../../../data/stepping-stones/wa-reentry.json";
 import waSeattle from "../../../data/stepping-stones/wa-seattle.json";
+import waYouth from "../../../data/stepping-stones/wa-youth.json";
 import { CURATED_PREFIX, curatedRows } from "./curated-stepping-stones";
 import { joinCensusPlaces, placeByCountyUrl, gazetteerUrl } from "./census-places";
 import { parseDelimited } from "./csv";
@@ -193,7 +194,7 @@ export async function syncSteppingStones(client: SupabaseClient | null, opts: Sy
   const { rows: official, skipped } = parseLniPrepPrograms(html, stamp);
   // Each packet is reviewed on its own; a draft packet loads nothing.
   const packets = await Promise.all(
-    [waCurated, waReentry, waFastHire, waInternational, waSeattle].map((packet) => curatedRows(packet, async (url) => (await get(url)).text(), asOf)),
+    [waCurated, waReentry, waFastHire, waInternational, waSeattle, waYouth].map((packet) => curatedRows(packet, async (url) => (await get(url)).text(), asOf)),
   );
   const curated = { rows: packets.flatMap((p) => p.rows), notes: packets.flatMap((p) => p.notes) };
   const rows = [...official, ...curated.rows];

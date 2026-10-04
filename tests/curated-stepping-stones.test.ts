@@ -84,3 +84,12 @@ describe("curatedRows with quotes from more than one page", () => {
     expect(notes[0]).toMatch(/no longer on https:\/\/app\.leg\.wa\.gov\/b/);
   });
 });
+
+describe("pageText", () => {
+  it("decodes named and numeric entities so faithful quotes match", async () => {
+    const { pageText } = await import("@/lib/data/washington/curated-stepping-stones");
+    expect(pageText("<td>7 a.m. &ndash; 10 p.m.</td> <p>the minor&rsquo;s &amp; &#8220;school&#x201D;</p>")).toBe(
+      '7 a.m. - 10 p.m. the minor\'s & "school"',
+    );
+  });
+});
