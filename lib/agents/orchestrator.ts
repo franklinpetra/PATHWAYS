@@ -53,6 +53,9 @@ export interface TurnInput {
 const HISTORY_TURNS = 12;
 /** Messages of prior conversation the Memory Agent reads for context. */
 const MEMORY_TURNS = 6;
+/** Earlier messages the candidate step reads, so a route reflects the whole conversation, not one exchange. */
+const ROUTE_CONTEXT_TURNS = 6;
+const EARLIER_MESSAGE_CHARS = 1500;
 
 export async function runTurn(input: TurnInput, emit: (event: ChatEvent) => void): Promise<void> {
   let state = await loadGuardState(input.userId);
@@ -179,7 +182,14 @@ async function converse(
   if (!pathway || !reply.trim()) return [];
 
   try {
-    const proposals = await proposeCandidates({ message, reply, pathway, openSteps, signal: input.signal });
+    const proposals = await proposeCandidates({
+      message,
+      reply,
+      pathway,
+      openSteps,
+      earlier: history.slice(-ROUTE_CONTEXT_TURNS),
+      signal: input.signal,
+    });
     const topics = sanitizeTopics(proposals.topics);
     if (topics.length > 0) emit({ type: "topics", items: topics });
     await commitQuietly(
@@ -273,13 +283,15 @@ wins: only things the person says they have already done that move this pathway 
 
 topics: 2-3 natural follow-ups the person might want to explore next, phrased as they would say them (e.g. "What does the first year cost?"). Never repeat what was just answered.
 
-route: the person's path as 2-5 stops, only when the exchange makes a path toward their goal clear. The first stop is where they stand today, in their own terms (e.g. "Art degree", "Bookkeeping experience", "Home after 5 years"); the last is the goal they named or the reply recommended; any middle stops are the rungs the reply laid out. Give a pay figure for a stop only if the reply states one for it with a [n] citation, copied exactly, with that n. gate_before names the main requirement between the previous stop and this one (e.g. "Exam", "License", "Credential review", "Apprenticeship"). Return null if no clear path was discussed.`;
+route: the person's path as 2-5 stops, whenever the conversation as a whole (earlier messages plus this exchange) shows where they stand and where they're heading, even if this exchange is about something narrower, like editing a profile. The first stop is where they stand today, in their own terms (e.g. "Art degree", "Bookkeeping experience", "Home after 5 years"); the last is the goal they named or the reply recommended; any middle stops are the rungs the reply laid out. Give a pay figure for a stop only if the reply states one for it with a [n] citation, copied exactly, with that n. gate_before names the main requirement between the previous stop and this one (e.g. "Exam", "License", "Credential review", "Apprenticeship"). Use pay figures only from this exchange's reply. Return null only if no goal or direction has come up anywhere in the conversation.`;
 
 async function proposeCandidates(args: {
   message: string;
   reply: string;
   pathway: Pathway;
   openSteps: Action[];
+  /** Earlier messages in this pathway, oldest first. */
+  earlier: ChatMessage[];
   signal?: AbortSignal;
 }) {
   return generateStructured({
@@ -294,6 +306,10 @@ async function proposeCandidates(args: {
         content: [
           `Pathway: ${args.pathway.title}`,
           `Open steps:\n${args.openSteps.map((s) => `- ${s.title}`).join("\n") || "(none)"}`,
+          `Earlier in the conversation (for the route only):\n${
+            args.earlier.map((m) => `${m.role === "user" ? "Person" : "Reply"}: ${m.content.slice(0, EARLIER_MESSAGE_CHARS)}`).join("\n\n") ||
+            "(none)"
+          }`,
           `Person:\n${args.message}`,
           `Reply:\n${args.reply}`,
         ].join("\n\n"),
