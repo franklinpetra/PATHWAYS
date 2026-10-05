@@ -190,6 +190,7 @@ export function Workspace({ pathway, initialSteps, initialWins, initialRoute, in
         route={route}
         wins={wins}
         candidates={candidates}
+        steps={steps}
         busy={panelBusy}
         onAction={(actions) => runActions(actions)}
         onDismissCandidate={(c) => setCandidates((all) => all.filter((x) => x !== c))}

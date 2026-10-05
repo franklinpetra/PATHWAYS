@@ -270,6 +270,10 @@ const candidatesSchema = z.object({
         .string()
         .describe("Short, in their terms. Done: past tense, e.g. 'Landed a first client'. Under way: e.g. 'Setting up an Upwork profile'."),
       learning: z.string().nullable().describe("What they learned, in their terms, if they said."),
+      goal: z
+        .string()
+        .nullable()
+        .describe("If it moves one of their other goals forward, that goal's name copied exactly from the list. Null for their main route."),
     }),
   ),
   topics: z
@@ -327,13 +331,18 @@ async function proposeCandidates(args: {
           args.route?.confirmed_stops?.length
             ? `Their chosen route${args.route.person_edited ? " (they edited it themselves; keep their wording and goal)" : ""}: ${args.route.confirmed_stops.map((s) => (s.note ? `${s.label} (${s.note})` : s.label)).join(" -> ")}. Suggest a different route only if this conversation changes or sharpens where they're heading.`
             : "Their chosen route: (none yet)",
+          args.route?.branches?.length
+            ? `Their other goals, pursued alongside the route (for wins only): ${args.route.branches.map((b) => b.stops.map((s) => s.label).join(" -> ")).join("; ")}`
+            : null,
           `Earlier in the conversation (for the route only):\n${
             args.earlier.map((m) => `${m.role === "user" ? "Person" : "Reply"}: ${m.content.slice(0, EARLIER_MESSAGE_CHARS)}`).join("\n\n") ||
             "(none)"
           }`,
           `Person:\n${args.message}`,
           `Reply:\n${args.reply}`,
-        ].join("\n\n"),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       },
     ],
   });

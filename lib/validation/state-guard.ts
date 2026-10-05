@@ -13,6 +13,7 @@ import {
   type MessageStatus,
   type Pathway,
   type PathwayRoute,
+  type RouteBranch,
   type ProgressEvent,
   type RouteStop,
   type WinStage,
@@ -59,9 +60,9 @@ type ActionInsert = Pick<Action, "pathway_id" | "title" | "why" | "how" | "statu
 type ActionFieldPatch = Partial<Pick<Action, "display_order" | "postponed_until" | "removed_at" | "due_at">>;
 type ProgressEventInsert = Pick<
   ProgressEvent,
-  "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning" | "stage" | "route_stop"
+  "user_id" | "pathway_id" | "event_type" | "title" | "evidence_status" | "source" | "learning" | "stage" | "route_stop" | "route_branch"
 >;
-type ProgressEventPatch = Partial<Pick<ProgressEvent, "title" | "learning" | "stage" | "route_stop">>;
+type ProgressEventPatch = Partial<Pick<ProgressEvent, "title" | "learning" | "stage" | "route_stop" | "route_branch">>;
 
 type MessageInsert = Pick<
   StoredMessage,
@@ -80,7 +81,7 @@ type Mutation =
   | {
       op: "upsert_route";
       pathwayId: string;
-      patch: Partial<Pick<PathwayRoute, "confirmed_stops" | "suggested_stops" | "position" | "person_edited">>;
+      patch: Partial<Pick<PathwayRoute, "confirmed_stops" | "suggested_stops" | "position" | "person_edited" | "branches">>;
     };
 
 export type ValidatedMutation = Mutation & { readonly [validated]: true };
@@ -236,6 +237,15 @@ function currentStop(state: GuardState, pathwayId: string | null): number | null
 }
 
 const sameTitle = (a: string, b: string) => normalizeForMatch(a) === normalizeForMatch(b);
+
+function routeOf(state: GuardState, pathwayId: string | null) {
+  return pathwayId ? state.routes?.find((r) => r.pathway_id === pathwayId) : undefined;
+}
+
+/** Branches grow from "here" when the trunk is replaced; otherwise they follow their fork stop. */
+function rehomeBranches(branches: RouteBranch[] | undefined, from: (old: number) => number): RouteBranch[] {
+  return (branches ?? []).map((b) => ({ ...b, from: from(b.from) }));
+}
 
 // ---------------------------------------------------------------------------
 // Memory Agent proposals
@@ -482,7 +492,7 @@ export function guardStepProposals(state: GuardState, proposals: StepProposal[],
 // AI-suggested routes
 // ---------------------------------------------------------------------------
 
-export const ROUTE_LIMITS = { minStops: 2, maxStops: 5, label: 40, gate: 24, pay: 32, note: 140 } as const;
+export const ROUTE_LIMITS = { minStops: 2, maxStops: 5, label: 40, gate: 24, pay: 32, note: 140, maxBranches: 4, maxBranchStops: 4 } as const;
 
 export interface RouteStopProposal {
   label: string;
@@ -581,6 +591,50 @@ export function buildEditedStops(
   return out;
 }
 
+/** Where a win sits: the start of a branch, or the trunk stretch the person is on. */
+function winPlace(state: GuardState, pathwayId: string | null, branch: string | null): { route_branch: string | null; route_stop: number | null } {
+  const onBranch = branch && routeOf(state, pathwayId)?.branches?.some((b) => b.id === branch);
+  return onBranch ? { route_branch: branch, route_stop: 0 } : { route_branch: null, route_stop: currentStop(state, pathwayId) };
+}
+
+/**
+ * The person's branches. An existing branch keeps its id; a stop kept under the same name keeps
+ * its pay and gate; notes are the person's own. Each fork must be a stop on the trunk.
+ */
+export function buildBranches(
+  existing: RouteBranch[],
+  next: { id: string | null; from: number; stops: { label: string; note?: string | null }[] }[],
+  trunkLength: number,
+): RouteBranch[] | string {
+  if (next.length > ROUTE_LIMITS.maxBranches) return `at most ${ROUTE_LIMITS.maxBranches} other goals`;
+  const used = new Set<string>();
+  const out: RouteBranch[] = [];
+  for (const b of next) {
+    if (b.from < 0 || b.from >= trunkLength) return "a branch must grow from a stop on your route";
+    if (!b.stops.length || b.stops.length > ROUTE_LIMITS.maxBranchStops) return `a branch has 1 to ${ROUTE_LIMITS.maxBranchStops} stops`;
+    const before = b.id ? existing.find((e) => e.id === b.id) : undefined;
+    let id = before?.id ?? `b${Math.random().toString(36).slice(2, 10)}`;
+    while (used.has(id)) id = `b${Math.random().toString(36).slice(2, 10)}`;
+    used.add(id);
+    const stops: RouteStop[] = [];
+    for (const [i, s] of b.stops.entries()) {
+      const label = cleanText(s.label, ROUTE_LIMITS.label);
+      if (!label) return "every stop needs a name";
+      const old = before?.stops[i];
+      const same = !!old && old.label === label;
+      stops.push({
+        label,
+        pay: same ? old!.pay : null,
+        paySource: same ? old!.paySource : null,
+        gate: same ? old!.gate : null,
+        note: s.note === undefined ? (old?.note ?? null) : cleanText(s.note, ROUTE_LIMITS.note),
+      });
+    }
+    out.push({ id, from: b.from, stops });
+  }
+  return out;
+}
+
 /** Where an old stop index lands after an edit: its own new place, else the nearest earlier kept stop, else 0. */
 export function remapIndex(old: number, stops: { from: number | null; note?: string | null }[]): number {
   for (let o = old; o >= 0; o--) {
@@ -601,6 +655,8 @@ export interface WinProposal {
   learning: string | null;
   stage?: WinStage;
   evidence_status?: EvidenceStatus;
+  /** The goal it moves forward, by name, when it belongs to one of the person's other goals. */
+  goal?: string | null;
 }
 
 export interface WinCandidate {
@@ -609,6 +665,15 @@ export interface WinCandidate {
   title: string;
   learning: string | null;
   stage: WinStage;
+  /** The branch it would grow on; null for the trunk. The person can move it. */
+  branch: string | null;
+}
+
+/** The branch whose stops include this goal name, if any. */
+function branchForGoal(state: GuardState, pathwayId: string | null, goal: string | null | undefined): string | null {
+  if (!goal) return null;
+  const branches = routeOf(state, pathwayId)?.branches ?? [];
+  return branches.find((b) => b.stops.some((s) => sameTitle(s.label, goal)))?.id ?? null;
 }
 
 /** Filters AI-proposed wins down to meaningful, well-formed candidates the person can choose to record. */
@@ -635,6 +700,7 @@ export function guardWinCandidates(
         title: title!,
         learning: cleanText(p.learning, LIMITS.detail),
         stage: p.stage === "underway" ? "underway" : "done",
+        branch: branchForGoal(state, p.pathway_id, p.goal),
       });
   }
   return { candidates, rejections };
@@ -744,7 +810,25 @@ export const userActionSchema = z.discriminatedUnion("type", [
       title: z.string(),
       learning: z.string().nullable().optional(),
       stage: z.enum(WIN_STAGES).optional(),
+      /** The branch it grew on; omitted or null for the trunk. */
+      branch: z.string().max(40).nullable().optional(),
     }),
+  }),
+  /** The person moves a win to another branch (null for the trunk). */
+  z.object({ type: z.literal("move_win"), progressEventId: z.uuid(), branch: z.string().max(40).nullable() }),
+  /** The person's other goals: each branch grows from a trunk stop and is replaced as a whole. */
+  z.object({
+    type: z.literal("set_route_branches"),
+    pathwayId: z.uuid(),
+    branches: z
+      .array(
+        z.object({
+          id: z.string().max(40).nullable(),
+          from: z.number().int().min(0).max(20),
+          stops: z.array(z.object({ label: z.string(), note: z.string().nullable().optional() })).min(1).max(ROUTE_LIMITS.maxBranchStops),
+        }),
+      )
+      .max(ROUTE_LIMITS.maxBranches),
   }),
   /** An under-way win is finished. */
   z.object({ type: z.literal("finish_win"), progressEventId: z.uuid() }),
@@ -816,6 +900,7 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
                 source: "next_step",
                 learning: null,
                 stage: "done",
+                route_branch: null,
                 route_stop: currentStop(state, step.pathway_id),
               },
             }),
@@ -1023,12 +1108,19 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
             seal({
               op: "upsert_route",
               pathwayId: action.pathwayId,
-              patch: { confirmed_stops: route.suggested_stops, suggested_stops: null, position: 0, person_edited: false },
+              patch: {
+                confirmed_stops: route.suggested_stops,
+                suggested_stops: null,
+                position: 0,
+                person_edited: false,
+                // The person's other goals stay, now growing from where they are on the new road.
+                branches: rehomeBranches(route.branches, () => 0),
+              },
             }),
           );
           // Wins so far become the first footsteps on the new road.
           for (const e of state.progressEvents) {
-            if (e.pathway_id === action.pathwayId && e.route_stop !== 0) {
+            if (e.pathway_id === action.pathwayId && !e.route_branch && e.route_stop !== 0) {
               result.mutations.push(seal({ op: "update_progress_event", id: e.id, userId: state.userId, patch: { route_stop: 0 } }));
             }
           }
@@ -1044,6 +1136,51 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
             break;
           }
           result.mutations.push(seal({ op: "upsert_route", pathwayId: action.pathwayId, patch: { position: action.position } }));
+        }
+        break;
+      }
+
+      case "move_win": {
+        const event = eventsById.get(action.progressEventId);
+        if (!event) {
+          reject("win not found");
+          break;
+        }
+        if (action.branch && !routeOf(state, event.pathway_id)?.branches?.some((b) => b.id === action.branch)) {
+          reject("that branch is not on the route");
+          break;
+        }
+        result.mutations.push(
+          seal({ op: "update_progress_event", id: event.id, userId: state.userId, patch: winPlace(state, event.pathway_id, action.branch) }),
+        );
+        break;
+      }
+
+      case "set_route_branches": {
+        if (!ownsPathway(state, action.pathwayId)) {
+          reject("pathway not found");
+          break;
+        }
+        const route = routeOf(state, action.pathwayId);
+        const trunk = route?.confirmed_stops;
+        if (!trunk?.length) {
+          reject("choose a route before adding other goals");
+          break;
+        }
+        const built = buildBranches(route!.branches ?? [], action.branches, trunk.length);
+        if (typeof built === "string") {
+          reject(built);
+          break;
+        }
+        result.mutations.push(seal({ op: "upsert_route", pathwayId: action.pathwayId, patch: { branches: built, person_edited: true } }));
+        // Wins on a branch that's gone move back to the trunk, at that branch's fork.
+        const kept = new Set(built.map((b) => b.id));
+        for (const e of state.progressEvents) {
+          if (e.pathway_id !== action.pathwayId || !e.route_branch || kept.has(e.route_branch)) continue;
+          const fork = route!.branches?.find((b) => b.id === e.route_branch)?.from ?? currentStop(state, action.pathwayId) ?? 0;
+          result.mutations.push(
+            seal({ op: "update_progress_event", id: e.id, userId: state.userId, patch: { route_branch: null, route_stop: fork } }),
+          );
         }
         break;
       }
@@ -1077,6 +1214,7 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
         // "You are here" follows its stop; a removed stop leaves the person at the nearest earlier one.
         const oldPosition = action.base === "confirmed" ? route!.position : 0;
         const position = action.base === "confirmed" ? remapIndex(oldPosition, action.stops) : 0;
+        const branches = rehomeBranches(route!.branches, (old) => (action.base === "confirmed" ? remapIndex(old, action.stops) : 0));
         result.mutations.push(
           seal({
             op: "upsert_route",
@@ -1085,12 +1223,16 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
               confirmed_stops: built,
               position,
               person_edited: true,
+              branches,
               ...(action.base === "suggested" && { suggested_stops: null }),
             },
           }),
         );
+        // Later actions in the same save (such as the person's branches) build on the new trunk.
+        Object.assign(route!, { confirmed_stops: built, position, branches, ...(action.base === "suggested" && { suggested_stops: null }) });
         for (const e of state.progressEvents) {
           if (e.pathway_id !== action.pathwayId) continue;
+          if (e.route_branch) continue;
           const next = action.base === "suggested" || e.route_stop === null ? 0 : remapIndex(e.route_stop, action.stops);
           if (next !== e.route_stop) {
             result.mutations.push(seal({ op: "update_progress_event", id: e.id, userId: state.userId, patch: { route_stop: next } }));
@@ -1118,7 +1260,7 @@ export function guardUserActions(state: GuardState, actions: UserAction[], now =
               source: "user_recorded",
               learning: cleanText(action.win.learning, LIMITS.detail),
               stage: action.win.stage ?? "done",
-              route_stop: currentStop(state, action.win.pathwayId),
+              ...winPlace(state, action.win.pathwayId, action.win.branch ?? null),
             },
           }),
         );

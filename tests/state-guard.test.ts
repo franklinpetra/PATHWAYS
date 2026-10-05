@@ -407,6 +407,7 @@ describe("editing wins", () => {
     learning: "Night shifts pay more",
     stage: "done",
     route_stop: null,
+    route_branch: null,
     occurred_at: "2026-09-20T00:00:00Z",
     created_at: "2026-09-20T00:00:00Z",
   };

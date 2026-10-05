@@ -113,11 +113,23 @@ export interface RouteStop {
   note?: string | null;
 }
 
+/** Another goal the person pursues, forking from a stop on the trunk. */
+export interface RouteBranch {
+  id: string;
+  /** Index of the trunk stop this branch grows from. */
+  from: number;
+  /** Its stops, ending at the branch's goal. */
+  stops: RouteStop[];
+}
+
 export interface PathwayRoute {
   pathway_id: string;
+  /** The trunk: from where they've been, through "you are here", to their main goal. */
   confirmed_stops: RouteStop[] | null;
   suggested_stops: RouteStop[] | null;
   position: number;
+  /** Other goals the person pursues; only they add or change these. */
+  branches: RouteBranch[];
   /** The person changed the route's stops themselves; suggestions should build on it. */
   person_edited: boolean;
   updated_at: string;
@@ -168,6 +180,8 @@ export interface ProgressEvent {
   stage: WinStage;
   /** The route stop the person had reached when this happened; its footsteps sit on the stretch after it. */
   route_stop: number | null;
+  /** The branch this win grew on; null for the trunk. */
+  route_branch: string | null;
   occurred_at: string;
   created_at: string;
 }

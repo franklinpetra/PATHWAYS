@@ -131,6 +131,10 @@ export function buildSystemPrompt(args: {
           (s, i) =>
             `${i + 1}. ${s.label}${i === args.route!.position ? " (they are here)" : ""}${s.note ? `: ${s.note}` : ""}`,
         ),
+        ...(args.route!.branches ?? []).map(
+          (b) =>
+            `Also pursuing, alongside (growing from ${stops[b.from]?.label ?? "here"}): ${b.stops.map((s) => (s.note ? `${s.label} (${s.note})` : s.label)).join(" -> ")}`,
+        ),
       ].join("\n"),
     );
   }

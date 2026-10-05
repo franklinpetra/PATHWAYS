@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Pathway, PathwayRoute, RouteStop } from "@/lib/db/types";
-import { buildEditedStops, guardRouteProposal, guardUserActions, remapIndex, type GuardState, type RouteClaim } from "@/lib/validation/state-guard";
+import { buildBranches, buildEditedStops, guardRouteProposal, guardUserActions, remapIndex, type GuardState, type RouteClaim } from "@/lib/validation/state-guard";
 
 const USER = "00000000-0000-4000-8000-000000000001";
 const PATHWAY = "00000000-0000-4000-8000-0000000000a1";
@@ -21,7 +21,7 @@ function state(route?: Partial<PathwayRoute>): GuardState {
     actions: [],
     progressEvents: [],
     routes: route
-      ? [{ pathway_id: PATHWAY, confirmed_stops: null, suggested_stops: null, position: 0, person_edited: false, updated_at: "", ...route }]
+      ? [{ pathway_id: PATHWAY, confirmed_stops: null, suggested_stops: null, position: 0, person_edited: false, branches: [], updated_at: "", ...route }]
       : [],
   };
 }
@@ -215,5 +215,74 @@ describe("route stop notes", () => {
       { label: "Full-stack engineer", from: 1, note: null },
     ]) as RouteStop[];
     expect(changed.map((s) => s.note)).toEqual(["Studio founder", null]);
+  });
+});
+
+describe("branches", () => {
+  const s = (label: string): RouteStop => ({ label, pay: null, paySource: null, gate: null });
+  const trunk = [s("Coder with AI"), s("Freelance developer"), s("Full-stack engineer")];
+  const branch = { id: "bart", from: 0, stops: [s("Gallery show"), s("Working artist")] };
+  const W = "00000000-0000-4000-8000-0000000000w4";
+
+  it("adds other goals that grow from stops on the trunk", () => {
+    const result = guardUserActions(state({ confirmed_stops: trunk, position: 1 }), [
+      { type: "set_route_branches", pathwayId: PATHWAY, branches: [{ id: null, from: 1, stops: [{ label: "  Teach a workshop " }, { label: "Studio founder", note: "Mine by 2029" }] }] },
+    ]);
+    expect(result.rejections).toEqual([]);
+    const branches = (result.mutations[0] as unknown as { patch: { branches: { from: number; stops: RouteStop[] }[] } }).patch.branches;
+    expect(branches[0].from).toBe(1);
+    expect(branches[0].stops.map((x) => [x.label, x.note])).toEqual([["Teach a workshop", null], ["Studio founder", "Mine by 2029"]]);
+  });
+
+  it("refuses a branch without a trunk, or forking off the end of it", () => {
+    expect(guardUserActions(state(), [{ type: "set_route_branches", pathwayId: PATHWAY, branches: [] }]).rejections).toHaveLength(1);
+    expect(buildBranches([], [{ id: null, from: 3, stops: [{ label: "X" }] }], 3)).toBeTypeOf("string");
+    expect(buildBranches([], [{ id: null, from: 0, stops: [{ label: "   " }] }], 3)).toBeTypeOf("string");
+  });
+
+  it("keeps a branch's id, and a stop's pay, when the name is unchanged", () => {
+    const priced = { ...branch, stops: [{ ...s("Gallery show"), pay: "$40/hr" }, s("Working artist")] };
+    const built = buildBranches([priced], [{ id: "bart", from: 0, stops: [{ label: "Gallery show" }, { label: "Muralist" }] }], 3);
+    expect(built).toMatchObject([{ id: "bart", stops: [{ pay: "$40/hr" }, { pay: null, label: "Muralist" }] }]);
+  });
+
+  it("records a win on a branch, and moves it home when the branch goes", () => {
+    const st = state({ confirmed_stops: trunk, position: 2, branches: [branch] });
+    const rec = guardUserActions(st, [{ type: "record_win", win: { pathwayId: PATHWAY, eventType: "milestone_reached", title: "Sold a print", branch: "bart" } }]);
+    expect(rec.mutations[0]).toMatchObject({ row: { route_branch: "bart", route_stop: 0 } });
+    const stray = guardUserActions(st, [{ type: "record_win", win: { pathwayId: PATHWAY, eventType: "milestone_reached", title: "Sold a print", branch: "nope" } }]);
+    expect(stray.mutations[0]).toMatchObject({ row: { route_branch: null, route_stop: 2 } });
+
+    const onBranch = { id: W, pathway_id: PATHWAY, route_branch: "bart", route_stop: 0, title: "Sold a print" } as never;
+    const removed = guardUserActions({ ...st, progressEvents: [onBranch] }, [{ type: "set_route_branches", pathwayId: PATHWAY, branches: [] }]);
+    expect(removed.mutations[1]).toMatchObject({ op: "update_progress_event", patch: { route_branch: null, route_stop: 0 } });
+  });
+
+  it("moves a win between branches the route has", () => {
+    const st = { ...state({ confirmed_stops: trunk, position: 1, branches: [branch] }), progressEvents: [{ id: W, pathway_id: PATHWAY, route_branch: null, route_stop: 1 } as never] };
+    expect(guardUserActions(st, [{ type: "move_win", progressEventId: W, branch: "bart" }]).mutations[0]).toMatchObject({ patch: { route_branch: "bart" } });
+    expect(guardUserActions(st, [{ type: "move_win", progressEventId: W, branch: "zzz" }]).rejections).toHaveLength(1);
+  });
+
+  it("re-roots branches when the trunk is edited or a new route is chosen", () => {
+    const edited = guardUserActions(state({ confirmed_stops: trunk, position: 0, branches: [{ ...branch, from: 2 }] }), [
+      { type: "set_route_stops", pathwayId: PATHWAY, base: "confirmed", stops: [{ label: "Coder with AI", from: 0 }, { label: "Full-stack engineer", from: 2 }] },
+    ]);
+    expect(edited.mutations[0]).toMatchObject({ patch: { branches: [{ from: 1 }] } });
+    const accepted = guardUserActions(state({ confirmed_stops: trunk, suggested_stops: [s("A"), s("B")], branches: [{ ...branch, from: 2 }] }), [
+      { type: "accept_route", pathwayId: PATHWAY },
+    ]);
+    expect(accepted.mutations[0]).toMatchObject({ patch: { branches: [{ from: 0 }] } });
+  });
+});
+
+describe("saving trunk and branches together", () => {
+  it("checks branch forks against the trunk saved just before", () => {
+    const s = (label: string): RouteStop => ({ label, pay: null, paySource: null, gate: null });
+    const result = guardUserActions(state({ confirmed_stops: [s("A"), s("B")] }), [
+      { type: "set_route_stops", pathwayId: PATHWAY, base: "confirmed", stops: [{ label: "A", from: 0 }, { label: "B", from: 1 }, { label: "C", from: null }] },
+      { type: "set_route_branches", pathwayId: PATHWAY, branches: [{ id: null, from: 2, stops: [{ label: "D" }] }] },
+    ]);
+    expect(result.rejections).toEqual([]);
   });
 });

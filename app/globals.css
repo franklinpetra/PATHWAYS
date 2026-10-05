@@ -62,6 +62,35 @@
   --animate-logo-enter: logo-enter 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
   /* A new footstep lands on the route */
   --animate-step-in: step-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* A new leaf unfurls on a branch of Your Route */
+  --animate-leaf-in: leaf-in 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Next steps glimmer softly ahead on the route */
+  --animate-glimmer: glimmer 3.6s ease-in-out infinite;
+
+  @keyframes leaf-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.2) rotate(-35deg);
+    }
+    65% {
+      opacity: 1;
+      transform: scale(1.18) rotate(4deg);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes glimmer {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
 
   @keyframes step-in {
     0% {

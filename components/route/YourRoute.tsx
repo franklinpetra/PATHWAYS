@@ -1,16 +1,19 @@
 "use client";
 
-import { ChevronDown, Pencil, Plus, X } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Sprout, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { RecentWins } from "@/components/dashboard/RecentWins";
 import { formatDay } from "@/lib/client/format";
 import { formatSourceDate } from "@/lib/workspace/attribution";
-import type { PathwayRoute, ProgressEvent, RouteStop } from "@/lib/db/types";
-import type { UserAction, WinCandidate } from "@/lib/validation/state-guard";
+import type { Action, PathwayRoute, ProgressEvent, RouteBranch, RouteStop } from "@/lib/db/types";
+import { ROUTE_LIMITS, type UserAction, type WinCandidate } from "@/lib/validation/state-guard";
+import { RouteMap, type MapItem, type MapStopRef } from "./RouteMap";
 
 /**
- * Your Route: one quiet line from where the person stands to where they're going, with their
- * wins as footsteps on the road.
+ * Your Route: where the person stands and where they're going. A chosen route is drawn as a
+ * living map (RouteMap): the trunk to their main goal, a branch for each other goal they pursue,
+ * wins as leaves, and open next steps as points of light. A suggested route, not yet chosen,
+ * stays one quiet dashed line with footsteps until the person decides.
  *
  *  - Stops are the big moves: passed (forest), "you are here" (the dawn dot), ahead (hollow).
  *    Pay shows under a stop only when a verified source stated it; gates sit on the line.
@@ -29,21 +32,23 @@ interface YourRouteProps {
   /** All of the person's recent wins; only this pathway's are shown. */
   wins: ProgressEvent[];
   candidates: WinCandidate[];
+  /** Open next steps, shown as points of light on the road ahead. */
+  steps: Action[];
   busy: boolean;
   onAction: (actions: UserAction[]) => void;
   onDismissCandidate: (candidate: WinCandidate) => void;
 }
 
-type Step =
-  | { kind: "win"; key: string; win: ProgressEvent }
-  | { kind: "candidate"; key: string; candidate: WinCandidate };
+type Step = Exclude<MapItem, { kind: "light" }>;
 
-export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, onDismissCandidate }: YourRouteProps) {
+export function YourRoute({ pathwayId, route, wins, candidates, steps, busy, onAction, onDismissCandidate }: YourRouteProps) {
   const [reviewing, setReviewing] = useState(false);
-  const [marking, setMarking] = useState<number | null>(null);
-  const [selected, setSelected] = useState<Step | null>(null);
+  const [marking, setMarking] = useState<MapStopRef | null>(null);
+  const [selected, setSelected] = useState<MapItem | null>(null);
   const [showList, setShowList] = useState(false);
   const [editing, setEditing] = useState<"confirmed" | "suggested" | null>(null);
+  /** Open the editor with a new, empty goal ready to name. */
+  const [growing, setGrowing] = useState(false);
   const listRef = useRef<HTMLOListElement>(null);
   // Footsteps present on first render don't animate; new ones land with a small step.
   const known = useRef<Set<string> | null>(null);
@@ -62,6 +67,8 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
   const showSuggestion = !!suggested && (!confirmed || reviewing);
   const stops = showSuggestion ? suggested : confirmed;
   const position = stops && !showSuggestion ? Math.min(route!.position, stops.length - 1) : -1;
+  const branches = route?.branches ?? [];
+  const markedStop = marking ? (marking.branch ? branches.find((b) => b.id === marking.branch)?.stops[marking.index] : stops?.[marking.index]) : undefined;
 
   // On a narrow screen the route scrolls sideways; keep "you are here" in view.
   useEffect(() => {
@@ -92,15 +99,24 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
   };
 
   if (editing && (editing === "confirmed" ? confirmed : suggested)) {
+    const close = () => {
+      setEditing(null);
+      setGrowing(false);
+    };
     return (
       <RouteEditor
         base={(editing === "confirmed" ? confirmed : suggested)!}
         here={editing === "confirmed" ? (route?.position ?? 0) : 0}
+        branches={editing === "confirmed" ? branches : null}
+        startNewGoal={growing}
         busy={busy}
-        onCancel={() => setEditing(null)}
-        onSave={(next) => {
-          onAction([{ type: "set_route_stops", pathwayId, base: editing, stops: next }]);
-          setEditing(null);
+        onCancel={close}
+        onSave={(next, nextBranches) => {
+          onAction([
+            { type: "set_route_stops", pathwayId, base: editing, stops: next },
+            ...(nextBranches ? [{ type: "set_route_branches" as const, pathwayId, branches: nextBranches }] : []),
+          ]);
+          close();
           setReviewing(false);
         }}
       />
@@ -128,6 +144,19 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
               <ChevronDown className={`size-3.5 transition-transform ${showList ? "rotate-180" : ""}`} aria-hidden />
             </button>
           )}
+          {confirmed && !showSuggestion && branches.length < ROUTE_LIMITS.maxBranches && (
+            <button
+              type="button"
+              onClick={() => {
+                setGrowing(true);
+                setEditing("confirmed");
+              }}
+              className="btn btn-ghost btn-sm gap-1 text-forest"
+            >
+              <Sprout className="size-3.5" aria-hidden />
+              Add a goal
+            </button>
+          )}
           {confirmed && !showSuggestion && (
             <button type="button" onClick={() => setEditing("confirmed")} aria-label="Edit your route" className="btn btn-ghost btn-icon size-7">
               <Pencil className="size-3.5" aria-hidden />
@@ -136,7 +165,21 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
         </div>
       </div>
 
-      {stops ? (
+      {stops && !showSuggestion ? (
+        <RouteMap
+          trunk={stops}
+          position={position}
+          branches={branches}
+          wins={myWins}
+          candidates={myCandidates}
+          steps={steps.filter((s) => s.pathway_id === pathwayId)}
+          selected={selected?.key ?? null}
+          isNew={isNew}
+          disabled={busy}
+          onSelectItem={(item) => setSelected((cur) => (cur?.key === item.key ? null : item))}
+          onSelectStop={(ref) => setMarking((cur) => (cur && cur.branch === ref.branch && cur.index === ref.index ? null : ref))}
+        />
+      ) : stops ? (
         <ol
           ref={listRef}
           className="relative -mx-gutter flex items-start overflow-x-auto overflow-y-hidden px-gutter pt-7 pb-1 [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none] lg:overflow-visible [&::-webkit-scrollbar]:hidden"
@@ -158,7 +201,7 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
                 stop={stop}
                 state={showSuggestion ? "suggested" : i < position ? "passed" : i === position ? "here" : "ahead"}
                 disabled={busy}
-                onSelect={() => setMarking(marking === i ? null : i)}
+                onSelect={() => setMarking(marking?.index === i ? null : { branch: null, index: i })}
               />
             </Fragment>
           ))}
@@ -178,11 +221,20 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
       {selected && (
         <StepDetail
           step={selected}
+          branches={stops && !showSuggestion ? branches : []}
+          trunkGoal={stops?.[stops.length - 1]?.label ?? null}
           busy={busy}
           onClose={() => setSelected(null)}
+          onMove={(w, branch) => {
+            onAction([{ type: "move_win", progressEventId: w.id, branch }]);
+            setSelected(null);
+          }}
           onConfirm={(c) => {
             onAction([
-              { type: "record_win", win: { pathwayId: c.pathway_id, eventType: c.event_type, title: c.title, learning: c.learning, stage: c.stage } },
+              {
+                type: "record_win",
+                win: { pathwayId: c.pathway_id, eventType: c.event_type, title: c.title, learning: c.learning, stage: c.stage, branch: c.branch },
+              },
             ]);
             onDismissCandidate(c);
             setSelected(null);
@@ -226,18 +278,18 @@ export function YourRoute({ pathwayId, route, wins, candidates, busy, onAction, 
         </div>
       ) : null}
 
-      {marking !== null && stops?.[marking] && (
-        <div role="group" aria-label={stops[marking].label} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-surface px-3 py-2 text-sm">
-          <span className="font-medium">{stops[marking].label}</span>
+      {marking && markedStop && (
+        <div role="group" aria-label={markedStop.label} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-surface px-3 py-2 text-sm">
+          <span className="font-medium">{markedStop.label}</span>
           <span className="min-w-0 flex-1 text-muted-foreground">
-            {stops[marking].note ?? (confirmed && !showSuggestion ? "No note yet. Use the pencil to say what this stop means to you." : "")}
+            {markedStop.note ?? (confirmed && !showSuggestion ? "No note yet. Use the pencil to say what this stop means to you." : "")}
           </span>
-          {!showSuggestion && marking !== position && (
+          {!showSuggestion && !marking.branch && marking.index !== position && (
             <button
               type="button"
               disabled={busy}
               onClick={() => {
-                onAction([{ type: "set_route_position", pathwayId, position: marking }]);
+                onAction([{ type: "set_route_position", pathwayId, position: marking.index }]);
                 setMarking(null);
               }}
               className="btn btn-active btn-sm"
@@ -396,22 +448,38 @@ function WinsOnly({
 
 function StepDetail({
   step,
+  branches,
+  trunkGoal,
   busy,
   onClose,
   onConfirm,
   onDismiss,
   onFinish,
+  onMove,
 }: {
-  step: Step;
+  step: MapItem;
+  /** The person's other goals, so a win can be moved to the one it belongs to. */
+  branches: RouteBranch[];
+  trunkGoal: string | null;
   busy: boolean;
   onClose: () => void;
   onConfirm: (c: WinCandidate) => void;
   onDismiss: (c: WinCandidate) => void;
   onFinish: (w: ProgressEvent) => void;
+  onMove: (w: ProgressEvent, branch: string | null) => void;
 }) {
+  const goalOf = (b: RouteBranch) => b.stops[b.stops.length - 1]?.label ?? "Another goal";
   return (
-    <div role="group" aria-label="Win" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-dawn-tint px-3 py-2 text-sm">
-      {step.kind === "candidate" ? (
+    <div role="group" aria-label={step.kind === "light" ? "Next step" : "Win"} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-dawn-tint px-3 py-2 text-sm">
+      {step.kind === "light" ? (
+        <>
+          <span className="text-xs font-medium text-dawn">Next step</span>
+          <span className="min-w-0 flex-1">
+            {step.step.title}
+            {step.step.why && <span className="block text-xs text-muted-foreground">{step.step.why}</span>}
+          </span>
+        </>
+      ) : step.kind === "candidate" ? (
         <>
           <span className="text-xs font-medium text-dawn">{step.candidate.stage === "underway" ? "Sounds like you've started:" : "Sounds like a win:"}</span>
           <span className="min-w-0 flex-1">{step.candidate.title}</span>
@@ -431,6 +499,24 @@ function StepDetail({
               Mark done
             </button>
           )}
+          {branches.length > 0 && (
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Grows toward
+              <select
+                disabled={busy}
+                value={step.win.route_branch && branches.some((b) => b.id === step.win.route_branch) ? step.win.route_branch : ""}
+                onChange={(e) => onMove(step.win, e.target.value || null)}
+                className="field field-sm h-7 w-auto max-w-[12rem] py-0 text-xs"
+              >
+                <option value="">{trunkGoal ?? "Main route"}</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {goalOf(b)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </>
       )}
       <button type="button" onClick={onClose} aria-label="Close" className="btn btn-ghost btn-icon size-7">
@@ -440,10 +526,15 @@ function StepDetail({
   );
 }
 
-/** The person's own version of the route: rename, remove, or add stops. */
+type BranchDraft = { key: string; id: string | null; fromKey: string; stops: { key: string; label: string; note: string }[] };
+type BranchSave = { id: string | null; from: number; stops: { label: string; note: string | null }[] };
+
+/** The person's own version of the route: rename, remove, or add stops, and the other goals that grow from it. */
 function RouteEditor({
   base,
   here,
+  branches,
+  startNewGoal,
   busy,
   onCancel,
   onSave,
@@ -451,14 +542,39 @@ function RouteEditor({
   base: RouteStop[];
   /** The stop the person is at, marked with the dawn dot. */
   here: number;
+  /** Their other goals; null when editing a suggestion, which has none yet. */
+  branches: RouteBranch[] | null;
+  startNewGoal: boolean;
   busy: boolean;
   onCancel: () => void;
-  onSave: (stops: { label: string; from: number | null; note: string | null }[]) => void;
+  onSave: (stops: { label: string; from: number | null; note: string | null }[], branches: BranchSave[] | null) => void;
 }) {
   const [stops, setStops] = useState(base.map((s, i) => ({ label: s.label, note: s.note ?? "", from: i as number | null, key: `s${i}` })));
+  const blankGoal = (): BranchDraft => ({
+    key: `g${Date.now()}`,
+    id: null,
+    fromKey: `s${Math.min(here, base.length - 1)}`,
+    stops: [{ key: `gs${Date.now()}`, label: "", note: "" }],
+  });
+  const [goals, setGoals] = useState<BranchDraft[]>(() => [
+    ...(branches ?? []).map((b) => ({
+      key: b.id,
+      id: b.id,
+      fromKey: `s${Math.min(b.from, base.length - 1)}`,
+      stops: b.stops.map((st, j) => ({ key: `${b.id}-${j}`, label: st.label, note: st.note ?? "" })),
+    })),
+    ...(branches && startNewGoal && branches.length < ROUTE_LIMITS.maxBranches ? [blankGoal()] : []),
+  ]);
   const canRemove = stops.length > 2;
   const canAdd = stops.length < 6;
   const add = (at: number) => setStops((all) => [...all.slice(0, at), { label: "", note: "", from: null, key: `n${Date.now()}` }, ...all.slice(at)]);
+  const setGoal = (key: string, fn: (g: BranchDraft) => BranchDraft) => setGoals((all) => all.map((g) => (g.key === key ? fn(g) : g)));
+  // A goal growing from a stop the person just removed moves to where they are.
+  const forkIndex = (g: BranchDraft) => {
+    const i = stops.findIndex((s) => s.key === g.fromKey);
+    return i >= 0 ? i : Math.max(0, Math.min(stops.findIndex((s) => s.from === here), stops.length - 1));
+  };
+  const incomplete = stops.some((s) => !s.label.trim()) || goals.some((g) => g.stops.some((s) => !s.label.trim()));
   return (
     <section aria-label="Edit your route" className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-1">
@@ -511,11 +627,121 @@ function RouteEditor({
           </li>
         ))}
       </ol>
+
+      {branches && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-1">
+            <h3 className="eyebrow">Also aiming for</h3>
+            <span className="text-xs text-muted-foreground">Other goals you&apos;re working toward at the same time</span>
+          </div>
+          {goals.map((g, n) => {
+            const goalStop = g.stops[g.stops.length - 1];
+            return (
+              <div key={g.key} role="group" aria-label={`Goal ${n + 1}`} className="space-y-1.5 rounded-2xl border border-border p-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Sprout className="size-3.5 text-forest" aria-hidden />
+                  <label htmlFor={`from-${g.key}`}>Grows from</label>
+                  <select
+                    id={`from-${g.key}`}
+                    value={stops[forkIndex(g)]?.key}
+                    onChange={(e) => setGoal(g.key, (x) => ({ ...x, fromKey: e.target.value }))}
+                    className="field field-sm h-7 max-w-[12rem] py-0 text-xs"
+                  >
+                    {stops.map((s, i) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label.trim() || `Stop ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setGoals((all) => all.filter((x) => x.key !== g.key))}
+                    aria-label={`Remove the goal ${goalStop.label || ""}`.trim()}
+                    className="btn btn-ghost btn-icon ml-auto size-7"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </div>
+                {g.stops.map((st, j) => {
+                  const isGoal = j === g.stops.length - 1;
+                  return (
+                    <div key={st.key} className="flex items-center gap-2">
+                      <span className={`size-2.5 shrink-0 rounded-full border-2 border-forest/50 ${isGoal ? "outline-2 outline-offset-1 outline-forest/25" : ""}`} aria-hidden />
+                      <label className="sr-only" htmlFor={`gstop-${st.key}`}>
+                        {isGoal ? "The goal" : `Step ${j + 1} toward it`}
+                      </label>
+                      <input
+                        id={`gstop-${st.key}`}
+                        value={st.label}
+                        maxLength={40}
+                        placeholder={isGoal ? "The goal, e.g. Working artist" : "A step toward it"}
+                        onChange={(e) =>
+                          setGoal(g.key, (x) => ({ ...x, stops: x.stops.map((y) => (y.key === st.key ? { ...y, label: e.target.value } : y)) }))
+                        }
+                        className="field field-sm flex-1"
+                      />
+                      {g.stops.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setGoal(g.key, (x) => ({ ...x, stops: x.stops.filter((y) => y.key !== st.key) }))}
+                          aria-label={`Remove ${st.label || "this step"}`}
+                          className="btn btn-ghost btn-icon size-7"
+                        >
+                          <X className="size-3.5" aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <textarea
+                  aria-label={`What ${goalStop.label || "this goal"} means to you`}
+                  value={goalStop.note}
+                  maxLength={140}
+                  rows={1}
+                  placeholder="What this goal means to you (optional)"
+                  onChange={(e) =>
+                    setGoal(g.key, (x) => ({ ...x, stops: x.stops.map((y) => (y.key === goalStop.key ? { ...y, note: e.target.value } : y)) }))
+                  }
+                  className="field field-sm field-multiline ml-4.5 w-[calc(100%-1.125rem)] resize-y text-xs text-muted-foreground"
+                />
+                {g.stops.length < ROUTE_LIMITS.maxBranchStops && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGoal(g.key, (x) => ({ ...x, stops: [...x.stops.slice(0, -1), { key: `gs${Date.now()}`, label: "", note: "" }, ...x.stops.slice(-1)] }))
+                    }
+                    className="ml-4.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-forest"
+                  >
+                    <Plus className="size-3" aria-hidden /> Add a step toward it
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {goals.length < ROUTE_LIMITS.maxBranches && (
+            <button type="button" onClick={() => setGoals((all) => [...all, blankGoal()])} className="btn btn-secondary btn-sm gap-1">
+              <Sprout className="size-3.5" aria-hidden /> Add another goal
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-1.5 pt-1">
         <button
           type="button"
-          disabled={busy || stops.some((s) => !s.label.trim())}
-          onClick={() => onSave(stops.map(({ label, from, note }) => ({ label: label.trim(), from, note: note.trim() || null })))}
+          disabled={busy || incomplete}
+          onClick={() =>
+            onSave(
+              stops.map(({ label, from, note }) => ({ label: label.trim(), from, note: note.trim() || null })),
+              branches
+                ? goals.map((g) => ({
+                    id: g.id,
+                    from: forkIndex(g),
+                    stops: g.stops.map((st) => ({ label: st.label.trim(), note: st.note.trim() || null })),
+                  }))
+                : null,
+            )
+          }
           className="btn btn-primary btn-sm"
         >
           Save my route
