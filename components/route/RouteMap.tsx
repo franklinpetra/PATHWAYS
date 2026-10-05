@@ -46,9 +46,12 @@ const COL_MIN = 104;
 const COL_MAX = 176;
 const PAD_X = 60;
 const TOP_ROOM = 34;
-const BOTTOM_ROOM = 44;
+/** Room under the lowest dot for a three-line label. */
+const BOTTOM_ROOM = 64;
 /** Room under the trunk for its two-line labels. */
 const TRUNK_LABEL_ROOM = 38;
+/** Room to the right of a branch's goal for its label. */
+const RIGHT_LABEL_ROOM = 150;
 /** Up, down, then further up and further down: the goals fan out around the trunk. */
 const LANES = [-1, 1, -2, 2];
 const MAX_LEAVES = 7;
@@ -93,7 +96,7 @@ function blob(minX: number, maxX: number, minY: number, maxY: number) {
   const n = 12;
   const pts = Array.from({ length: n }, (_, i) => {
     const a = (i / n) * Math.PI * 2;
-    const r = 1 + wobble("blob", i, 0.07);
+    const r = 1 - Math.abs(wobble("blob", i, 0.08));
     return { x: cx + Math.cos(a) * rx * r, y: cy + Math.sin(a) * ry * r };
   });
   // Closed Catmull-Rom through the points, as cubic curves.
@@ -116,20 +119,34 @@ interface Node {
   at: Pt;
   state: "passed" | "here" | "ahead" | "branch";
   goal: boolean;
-  /** Label above the dot (branches rising above the trunk) or below it. */
-  above: boolean;
+  /**
+   * Where the label hangs: above the dot on branches rising above the trunk, below it otherwise,
+   * and to the right at the end of a branch, like a sign at the end of a road.
+   */
+  place: "above" | "below" | "right";
+}
+
+/**
+ * Each branch's lane. Goals that fork later take the inner lanes, so a branch growing from
+ * further along never has to cross one that grew earlier.
+ */
+function lanesOf(branches: RouteBranch[]) {
+  const order = branches.map((b, k) => ({ id: b.id, from: b.from, k })).sort((a, b) => b.from - a.from || a.k - b.k);
+  return new Map(order.map((b, rank) => [b.id, LANES[rank % LANES.length]]));
 }
 
 /** How many columns wide the map is, before choosing a column width. */
 function spanOf(trunk: RouteStop[], branches: RouteBranch[]) {
+  const lanes = lanesOf(branches);
   return Math.max(
     trunk.length - 1,
-    ...branches.map((b, k) => Math.min(b.from, trunk.length - 1) + b.stops.length * 0.92 + Math.abs(LANES[k % LANES.length]) * 0.09),
+    ...branches.map((b) => Math.min(b.from, trunk.length - 1) + b.stops.length * 0.92 + Math.abs(lanes.get(b.id)!) * 0.09),
     1,
   );
 }
 
-function layout(trunk: RouteStop[], position: number, branches: RouteBranch[], COL: number, LANE: number) {
+function layout(trunk: RouteStop[], position: number, branches: RouteBranch[], COL: number, LANE: number, OUTER: number) {
+  const lanes = lanesOf(branches);
   const trunkPts = trunk.map((_, i) => ({ x: PAD_X + i * COL, y: wobble("trunk", i, 6) }));
   const nodes: Node[] = trunk.map((stop, i) => ({
     ref: { branch: null, index: i },
@@ -137,20 +154,20 @@ function layout(trunk: RouteStop[], position: number, branches: RouteBranch[], C
     at: trunkPts[i],
     state: i < position ? "passed" : i === position ? "here" : "ahead",
     goal: i === trunk.length - 1,
-    above: false,
+    place: "below",
   }));
   const trunkSegs = trunkPts.slice(1).map((p, i) => segment(trunkPts[i], p, `t${i}`));
 
   const branchSegs = new Map<string, Seg[]>();
-  branches.forEach((b, k) => {
-    const lane = LANES[k % LANES.length];
+  branches.forEach((b) => {
+    const lane = lanes.get(b.id)!;
     const root = trunkPts[Math.min(b.from, trunkPts.length - 1)];
     const pts = b.stops.map((_, j) => {
       // Rise gradually away from the trunk, then settle on the branch's own line.
       const rise = 0.55 + (0.45 * (j + 1)) / b.stops.length;
       // Branches below the trunk drop further, clearing the trunk's own labels.
       const clear = lane > 0 ? TRUNK_LABEL_ROOM : 0;
-      return { x: root.x + (j + 1) * COL * 0.92 + Math.abs(lane) * 10, y: lane * LANE * rise + clear + wobble(b.id, j, 5) };
+      return { x: root.x + (j + 1) * COL * 0.92 + Math.abs(lane) * 10, y: Math.sign(lane) * (LANE * rise + (Math.abs(lane) - 1) * OUTER) + clear + wobble(b.id, j, 5) };
     });
     const all = [root, ...pts];
     branchSegs.set(
@@ -158,15 +175,17 @@ function layout(trunk: RouteStop[], position: number, branches: RouteBranch[], C
       pts.map((p, j) => segment(all[j], p, `${b.id}${j}`)),
     );
     b.stops.forEach((stop, j) =>
-      nodes.push({ ref: { branch: b.id, index: j }, stop, at: pts[j], state: "branch", goal: j === b.stops.length - 1, above: lane < 0 }),
+      nodes.push({ ref: { branch: b.id, index: j }, stop, at: pts[j], state: "branch", goal: j === b.stops.length - 1,
+        place: j === b.stops.length - 1 ? "right" : lane < 0 ? "above" : "below",
+      }),
     );
   });
 
-  const xs = nodes.map((n) => n.at.x);
   const ys = nodes.map((n) => n.at.y);
-  const minY = Math.min(...ys) - TOP_ROOM - (nodes.some((n) => n.above) ? 16 : 0);
+  // Labels above a dot can run to three lines.
+  const minY = Math.min(...ys) - (nodes.some((n) => n.place === "above") ? BOTTOM_ROOM : TOP_ROOM);
   const maxY = Math.max(...ys) + BOTTOM_ROOM;
-  const width = Math.max(...xs) + PAD_X;
+  const width = Math.max(...nodes.map((n) => n.at.x + (n.place === "right" ? RIGHT_LABEL_ROOM : PAD_X)));
   return { nodes, trunkSegs, branchSegs, minY, maxY, width };
 }
 
@@ -187,7 +206,7 @@ export function RouteMap({ trunk, position, branches, wins, candidates, steps, s
   }, []);
   const narrow = avail > 0 && avail < 640;
   const col = Math.min(COL_MAX, Math.max(COL_MIN, avail ? (avail - 2 * PAD_X) / spanOf(trunk, branches) : COL_MIN));
-  const { nodes, trunkSegs, branchSegs, minY, maxY, width } = layout(trunk, position, branches, col, narrow ? 50 : 60);
+  const { nodes, trunkSegs, branchSegs, minY, maxY, width } = layout(trunk, position, branches, col, narrow ? 50 : 60, narrow ? 62 : 70);
   const height = maxY - minY;
   const Y = (y: number) => y - minY;
   const last = trunk.length - 1;
@@ -224,9 +243,11 @@ export function RouteMap({ trunk, position, branches, wins, candidates, steps, s
     const visible = items.slice(-MAX_LEAVES);
     // On the stretch "you are here" sits on, leaves keep to the first part; lights shine ahead.
     const end = path === herePath && lights.length ? 0.5 : 0.88;
-    // Branch leaves stay on the stretch from the fork to the branch's first stop.
-    spread(visible.length, 0.1, end).forEach((t, k) => {
-      const p = at(segs[0], t);
+    // Leaves spread along the whole branch, stopping short of its goal; reaching it is the person's call.
+    const reach = segs.length > 1 ? segs.length - 0.25 : end;
+    spread(visible.length, 0.1, reach).forEach((t, k) => {
+      const seg = Math.min(Math.floor(t), segs.length - 1);
+      const p = at(segs[seg], t - seg);
       placed.push({ item: visible[k], ...p, side: k % 2 === 0 ? -1 : 1 });
     });
     if (items.length > visible.length) {
@@ -375,7 +396,7 @@ function describe(item: MapItem): { label: string; tip: string } {
 }
 
 function StopNode({ node, top, disabled, onSelect }: { node: Node; top: number; disabled: boolean; onSelect: () => void }) {
-  const { stop, state, goal, above } = node;
+  const { stop, state, goal, place } = node;
   const dot = {
     passed: "border-forest bg-forest",
     here: "border-dawn bg-dawn shadow-[0_0_0_5px_color-mix(in_srgb,var(--color-dawn)_18%,transparent)]",
@@ -387,9 +408,9 @@ function StopNode({ node, top, disabled, onSelect }: { node: Node; top: number; 
     ? `${stop.paySource.name}, ${stop.paySource.verificationAuthority}, as of ${formatSourceDate(stop.paySource.asOf)}`
     : undefined;
   const label = (
-    <span className="flex flex-col items-center">
+    <span className={`flex flex-col ${place === "right" ? "items-start" : "items-center"}`}>
       <span
-        className={`max-w-[6.5rem] text-center text-xs leading-tight [text-wrap:balance] ${state === "here" ? "font-semibold text-foreground" : goal ? "font-semibold text-forest" : "font-medium text-foreground/85"} ${stop.note ? "underline decoration-dawn/50 decoration-dotted underline-offset-[3px]" : ""}`}
+        className={`${place === "right" ? "max-w-[8.5rem] text-left" : "max-w-[6.5rem] text-center"} text-xs leading-tight [text-wrap:balance] ${state === "here" ? "font-semibold text-foreground" : goal ? "font-semibold text-forest" : "font-medium text-foreground/85"} ${stop.note ? "underline decoration-dawn/50 decoration-dotted underline-offset-[3px]" : ""}`}
       >
         {stop.label}
       </span>
@@ -409,8 +430,14 @@ function StopNode({ node, top, disabled, onSelect }: { node: Node; top: number; 
       aria-current={state === "here" ? "step" : undefined}
       aria-label={`${stop.label}${state === "here" ? ", you are here" : state === "passed" ? ", reached" : ""}${goal ? ", a goal" : ""}${stop.note ? `. Note: ${stop.note}` : ""}`}
       style={{ left: node.at.x, top }}
-      // The dot sits exactly on its point on the map; the label hangs above or below it.
-      className={`group absolute z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-1 disabled:cursor-default ${above ? "-translate-y-[calc(100%-7px)] flex-col-reverse" : "-translate-y-[7px] flex-col"}`}
+      // The dot (14px, after 4px of padding) sits exactly on its point on the map; the label hangs off it.
+      className={`group absolute z-10 flex items-center gap-1.5 rounded-xl px-1 disabled:cursor-default ${
+        place === "right"
+          ? "-translate-x-[11px] -translate-y-1/2 flex-row"
+          : place === "above"
+            ? "-translate-x-1/2 -translate-y-[calc(100%-7px)] flex-col-reverse"
+            : "-translate-x-1/2 -translate-y-[7px] flex-col"
+      }`}
     >
       <span className={`relative size-3.5 shrink-0 rounded-full border-2 transition-transform group-enabled:group-hover:scale-125 ${dot} ${ring}`} aria-hidden />
       <span className="[text-shadow:0_0_3px_var(--color-background),0_0_6px_var(--color-background),0_0_10px_var(--color-background)]">{label}</span>
